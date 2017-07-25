@@ -9,12 +9,56 @@ import requests
 import subprocess
 
 def auth():
-    webbrowser.open(fullpath)
+    responseType = "code"
+    redirect = "http://127.0.0.1:5000/"
+    scope = "user-read-private"
+    
+    fullpath = '{0}?client_id={1}&response_type={2}&redirect_uri={3}&scope={4}'.format(
+        endPoints("auth"),
+        clientID,
+        responseType,
+        redirect,
+        scope
+    )
+    
+    print(fullpath)
+    #webbrowser.open(fullpath)
 
-def requestToken(tokenUrl, redirect, clientID, clientSecret):
+def endPoints(endpoint):
+    authBaseUrl = "https://accounts.spotify.com/"
+    apiBaseUrl = "https://api.spotify.com/"
+
+    if endpoint == "":
+        fullUrl = authBaseUrl
+
+    elif endpoint == "auth":
+        fullUrl = '{0}authorize'.format(authBaseUrl)
+        
+    elif endpoint == "token":
+        fullUrl = '{0}api/token'.format(authBaseUrl)
+        
+    elif endpoint == "userData":
+        fullUrl = '{0}v1/me'.format(apiBaseUrl)
+
+    else:
+        fullUrl = ""
+        print("Unknown Endpoint!")
+        
+    return fullUrl
+    
+
+def requestToken(redirect, clientID, clientSecret):
     codeFile = open(os.path.join('data', "code.txt"), 'r')
     code = codeFile.read()
-    getToken = requests.post(tokenUrl, data = {'grant_type':'authorization_code', 'code': code, 'redirect_uri': redirect, 'client_id': clientID, 'client_secret': clientSecret})
+    
+    getToken = requests.post(endPoints("token"), data = {
+        'grant_type':'authorization_code',
+        'code': code,
+        'redirect_uri': redirect,
+        'client_id': clientID,
+        'client_secret': clientSecret
+        }
+    )
 
     if(getToken.status_code == 200):
         #extract token and expiry time
@@ -41,7 +85,13 @@ def refreshToken():
     refTokenFile = open(os.path.join('data', "reftoken.txt"), 'r')
     rToken = refTokenFile.read()
     
-    getnewToken = requests.post(tokenUrl, data = {'grant_type':'refresh_token', 'refresh_token': rToken, 'client_id': clientID, 'client_secret': clientSecret})
+    getnewToken = requests.post(endPoints("token"), data = {
+        'grant_type':'refresh_token',
+        'refresh_token': rToken,
+        'client_id': clientID,
+        'client_secret': clientSecret
+        }
+    )
     jsonData = getnewToken.json()
     token = jsonData['access_token']
     
@@ -60,7 +110,7 @@ def prevLogin():
         tokenFile = open( os.path.join('data', "token.txt"), 'r')
         token = tokenFile.read()
 
-        getUserData = requests.get('https://api.spotify.com/v1/me', headers = {'Authorization': 'Bearer {0}'.format(token)})
+        getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
         jsonData = getUserData.json()
 
         userName = jsonData['display_name']
@@ -93,7 +143,7 @@ def login():
 
         if(len(code) == 0):
             print('Invalid Authorization code')
-            print('Attemptong to grab another')     
+            print('Attempting to grab another')     
             subprocess.Popen("server.py 1", shell=True)
             auth()
             
@@ -107,4 +157,4 @@ def login():
         while not(os.path.isfile(os.path.join('data', "code.txt"))):
             print("Please Login to Continue!!")
             time.sleep(5)
-        requestToken(tokenUrl, redirect, clientID, clientSecret)
+        requestToken(redirect, clientID, clientSecret)

@@ -6,6 +6,7 @@ import requests
 import re
 from bs4 import BeautifulSoup
 import urllib.parse
+import wget
 
 
 #Temporary workaround, using external site(s)
@@ -26,6 +27,8 @@ def grabProtURL(ytID):
             if l:
                 audioLink = l.group(1).replace('amp;','')
             break
+
+    return audioLink
 
 ### wip, need to figure out how to decipher protected video signatures ###
 ### Currently grabs unprotected videos ###
@@ -104,7 +107,8 @@ def grabUrl(ytID):
         print('Protected')
 
         ##Grab protected link
-        grabProtURL(ytID)
+        audioUrl = grabProtURL(ytID)
+        return audioUrl
 
     except requests.exceptions.ConnectionError:
         print('Unprotected')

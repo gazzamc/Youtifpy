@@ -9,6 +9,7 @@ import os.path
 import requests
 import subprocess
 import threading
+import wget
 
 def auth():
     responseType = "code"
@@ -51,11 +52,18 @@ def endPoints(endpoint):
     return fullUrl
     
 def search(type, query):
-    tokenFile = open(os.path.join('data', "token.txt"), 'r')
-    token = tokenFile.read()
+    token = grabToken('token')
 
     searchRes = requests.get('{0}{1}&type={2}'.format(endPoints("search"), query, type),
                              headers = {'Authorization': 'Bearer {0}'.format(token)})
+
+    #check if token is still valid, if not refresh and try again
+    if searchRes.status_code == '401':
+        refreshToken()
+
+        token = grabToken('token')
+        searchRes = requests.get('{0}{1}&type={2}'.format(endPoints("search"), query, type),
+                                 headers={'Authorization': 'Bearer {0}'.format(token)})
 
     jsonData = searchRes.json()
     results = jsonData['{0}s'.format(type)]['items']
@@ -81,8 +89,7 @@ def search(type, query):
     return queryResult
 
 def requestToken(redirect, clientID, clientSecret):
-    codeFile = open(os.path.join('data', "code.txt"), 'r')
-    code = codeFile.read()
+    code = grabToken('code')
     
     getToken = requests.post(endPoints("token"), data = {
         'grant_type':'authorization_code',
@@ -115,8 +122,7 @@ def requestToken(redirect, clientID, clientSecret):
 
 
 def refreshToken():
-    refTokenFile = open(os.path.join('data', "reftoken.txt"), 'r')
-    rToken = refTokenFile.read()
+    rToken = grabToken('refresh')
     
     getnewToken = requests.post(endPoints("token"), data = {
         'grant_type':'refresh_token',
@@ -134,6 +140,21 @@ def refreshToken():
     tokenFile.close()
 
     print('Valid Token Grabbed')
+
+def grabToken(tokenType):
+
+    if tokenType == 'refresh':
+        name = 'refToken'
+    elif tokenType == 'token':
+        name = 'token'
+    else:
+        name = 'code'
+
+    tokenFile = open(os.path.join('data', "{}.txt".format(name)), 'r')
+    token = tokenFile.read()
+
+    return token
+
 
 def prevLogin():
     if not(os.path.isfile(os.path.join('data', "token.txt"))):

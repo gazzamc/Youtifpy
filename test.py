@@ -3,7 +3,7 @@ import os
 import time
 import urllib
 from functions import *
-from PyQt5.QtWidgets import (QLineEdit, QSlider, QPushButton, QGridLayout, QVBoxLayout, QApplication, QWidget, QMainWindow, QLabel)
+from PyQt5.QtWidgets import (QLineEdit, QSlider, QPushButton, QListWidget, QGridLayout, QVBoxLayout, QApplication, QWidget, QMainWindow, QLabel)
 from PyQt5.QtCore import (Qt, QRect)
 from PyQt5.QtGui import (QIcon, QPixmap)
 
@@ -77,9 +77,32 @@ class homeWindow(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
+        self.centralwidget = QWidget()
+        self.centralwidget.setObjectName("centralwidget")
+
         self.setWindowTitle('Spotify - Home')
         self.setFixedSize(800,400)
-            
+
+        self.search = QLineEdit('Search...', self)
+        self.search.move(50, 200)
+        self.search.returnPressed.connect(self.getSearchParms)
+
+        self.searchBtn = QPushButton('', self)
+        self.searchBtn.move(50, 250)
+        self.searchBtn.clicked.connect(self.getSearchParms)
+
+        self.resultList = QListWidget(self)
+        self.resultList.resize(400, 250)
+        self.resultList.move(300, 100)
+
+    def getSearchParms(self):
+        self.searchText = self.search.text()
+
+        results = search('track', self.searchText)
+
+        for result in results:
+            self.item = result
+            self.resultList.addItem(self.item)
 
 def run():
     app = QApplication(sys.argv)

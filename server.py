@@ -1,7 +1,7 @@
 from flask import Flask
 from flask import request
 import os.path
-    
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -12,6 +12,5 @@ def authenticate():
 	file.close()
 	return 'Logged in Successfully, please return to the app'
 
-
-if __name__ == "__main__":
+def run_server():
 	app.run()

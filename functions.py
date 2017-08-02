@@ -2,11 +2,13 @@
 # functions.py
 
 from OAuth import *
+from server import run_server
 import webbrowser
 import time
 import os.path
 import requests
 import subprocess
+import threading
 
 def auth():
     responseType = "code"
@@ -20,9 +22,8 @@ def auth():
         redirect,
         scope
     )
-    
-    print(fullpath)
-    #webbrowser.open(fullpath)
+
+    webbrowser.open(fullpath)
 
 def endPoints(endpoint):
     authBaseUrl = "https://accounts.spotify.com/"
@@ -40,12 +41,44 @@ def endPoints(endpoint):
     elif endpoint == "userData":
         fullUrl = '{0}v1/me'.format(apiBaseUrl)
 
+    elif endpoint == "search":
+        fullUrl = '{0}v1/search?q='.format(apiBaseUrl)
+
     else:
         fullUrl = ""
         print("Unknown Endpoint!")
         
     return fullUrl
     
+def search(type, query):
+    tokenFile = open(os.path.join('data', "token.txt"), 'r')
+    token = tokenFile.read()
+
+    searchRes = requests.get('{0}{1}&type={2}'.format(endPoints("search"), query, type),
+                             headers = {'Authorization': 'Bearer {0}'.format(token)})
+
+    jsonData = searchRes.json()
+    results = jsonData['{0}s'.format(type)]['items']
+
+    queryResult = []
+
+    for result in results:
+        queryResult.append(result['name'])
+
+        if type == 'artist':
+            result['name']
+
+        elif type == 'track':
+            result['name']
+
+        elif type == 'playlist':
+            result['name']
+            result['owner']['id']
+
+        else:
+            result['name']
+
+    return queryResult
 
 def requestToken(redirect, clientID, clientSecret):
     codeFile = open(os.path.join('data', "code.txt"), 'r')
@@ -143,18 +176,21 @@ def login():
 
         if(len(code) == 0):
             print('Invalid Authorization code')
-            print('Attempting to grab another')     
-            subprocess.Popen("server.py 1", shell=True)
+            print('Attempting to grab another')
             auth()
             
         refreshToken()
         prevLogin()
         
     else:
-        subprocess.Popen("server.py 1", shell=True)
+        server = threading.Thread(target=run_server)
+        server.daemon = True
+        server.start()
+
         auth()
 
         while not(os.path.isfile(os.path.join('data', "code.txt"))):
             print("Please Login to Continue!!")
             time.sleep(5)
+
         requestToken(redirect, clientID, clientSecret)

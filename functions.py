@@ -58,12 +58,13 @@ def search(type, query):
                              headers = {'Authorization': 'Bearer {0}'.format(token)})
 
     #check if token is still valid, if not refresh and try again
-    if searchRes.status_code == '401':
+    if searchRes.status_code == 401:
         refreshToken()
 
         token = grabToken('token')
         searchRes = requests.get('{0}{1}&type={2}'.format(endPoints("search"), query, type),
                                  headers={'Authorization': 'Bearer {0}'.format(token)})
+
 
     jsonData = searchRes.json()
     results = jsonData['{0}s'.format(type)]['items']
@@ -133,7 +134,8 @@ def refreshToken():
     )
     jsonData = getnewToken.json()
     token = jsonData['access_token']
-    
+
+    print(jsonData)
     #store token
     tokenFile = open( os.path.join('data', "token.txt"), 'w')
     tokenFile.write(token)

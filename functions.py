@@ -1,5 +1,7 @@
-# Author: Gary McGovern
-# functions.py
+###################################
+###     Author: Gary McGovern   ###
+###     File: functions.py      ###
+###################################
 
 from OAuth import *
 from server import run_server
@@ -45,6 +47,12 @@ def endPoints(endpoint):
     elif endpoint == "search":
         fullUrl = '{0}v1/search?q='.format(apiBaseUrl)
 
+    elif endpoint == "artist":
+        fullUrl = '{0}v1/artists/'.format(apiBaseUrl)
+
+    elif endpoint == "track":
+        fullUrl = '{0}v1/tracks/'.format(apiBaseUrl)
+
     else:
         fullUrl = ""
         print("Unknown Endpoint!")
@@ -69,25 +77,54 @@ def search(type, query):
     jsonData = searchRes.json()
     results = jsonData['{0}s'.format(type)]['items']
 
-    queryResult = []
+    nameResult = []
+    idResult = []
+    artistResult = []
 
     for result in results:
-        queryResult.append(result['name'])
+        nameResult.append(result['name'])
+        idResult.append(result['id'])
 
-        if type == 'artist':
-            result['name']
+        if type == 'track':
+            for artist in result['artists']:
+                artistResult.append(artist['name'])
 
-        elif type == 'track':
-            result['name']
+    return nameResult, idResult, artistResult
 
-        elif type == 'playlist':
-            result['name']
-            result['owner']['id']
+def getArtist(artistID):
+    token = grabToken('token')
+    artist = requests.get('{0}{1}'.format(endPoints("artist"), artistID),
+                             headers={'Authorization': 'Bearer {0}'.format(token)})
 
-        else:
-            result['name']
+    #check if token is still valid, if not refresh and try again
+    if artist.status_code == 401:
+        refreshToken()
 
-    return queryResult
+        token = grabToken('token')
+        artist = requests.get('{0}{1}'.format(endPoints("artist"), artistID),
+                              headers={'Authorization': 'Bearer {0}'.format(token)})
+
+    jsonData = artist.json()
+
+    artistDetails = [
+
+        jsonData['uri'],
+        jsonData['id'],
+        jsonData['images'][0]['url'],
+        jsonData['name'],
+        jsonData['genres'],
+        jsonData['popularity'],
+    ]
+
+    return artistDetails
+
+def getTrack(trackID):
+    token = grabToken('token')
+    track = requests.get('{0}{1}'.format(endPoints("track"), trackID),
+                             headers={'Authorization': 'Bearer {0}'.format(token)})
+    jsonData = track.json()
+
+    print(jsonData)
 
 def requestToken(redirect, clientID, clientSecret):
     code = grabToken('code')
@@ -152,7 +189,7 @@ def grabToken(tokenType):
     else:
         name = 'code'
 
-    tokenFile = open(os.path.join('data', "{}.txt".format(name)), 'r')
+    tokenFile = open(os.path.join('data', "{0}.txt".format(name)), 'r')
     token = tokenFile.read()
 
     return token

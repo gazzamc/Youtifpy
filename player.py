@@ -11,18 +11,21 @@ from PyQt5 import QtMultimedia
 from PyQt5.QtMultimedia import (QMediaPlayer, QMediaContent)
 from PyQt5.QtCore import *
 
-def playAudio(filen, audioType):
-
-    #Create Media Player instance
-    player = QMediaPlayer()
+def playAudio(player, filen, local=True, audioType='mp3'):
 
     file = QUrl()
-    #Create QUrl instance and set file path
-    file = file.fromLocalFile(os.path.join('music', "{0}.{1}".format
-        (
-            filen,
-            audioType
-        )))
+
+    if local:
+        #Create QUrl instance and set file path
+        file = file.fromLocalFile(os.path.join('music', "{0}.{1}".format
+            (
+                filen,
+                audioType
+            )))
+
+    else:
+        #Urls seem to play but only briefly, will need to investigate this, I think it might be the buffer
+        file = QUrl(filen)
 
     #Create media content
     media = QMediaContent(file)
@@ -31,14 +34,9 @@ def playAudio(filen, audioType):
     player.setAudioRole(0)
 
     #add media to player
-    player.setMedia(media)
+    player.setMedia(QMediaContent(media))
 
     #Set volume
     player.setVolume(9)
 
-    #return player
     return player
-
-player = playAudio('audio', 'mp3')
-
-player.play()

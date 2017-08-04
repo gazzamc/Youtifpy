@@ -31,6 +31,7 @@ def auth():
 def endPoints(endpoint):
     authBaseUrl = "https://accounts.spotify.com/"
     apiBaseUrl = "https://api.spotify.com/"
+    ytBaseUrl = "https://www.googleapis.com/"
 
     if endpoint == "":
         fullUrl = authBaseUrl
@@ -53,25 +54,46 @@ def endPoints(endpoint):
     elif endpoint == "track":
         fullUrl = '{0}v1/tracks/'.format(apiBaseUrl)
 
+    elif endpoint == "youtube":
+        fullUrl = '{0}youtube/v3/'.format(ytBaseUrl)
+
     else:
         fullUrl = ""
         print("Unknown Endpoint!")
         
     return fullUrl
     
-def search(type, query):
+def search(type, query, limit=20, offset=0):
     token = grabToken('token')
 
-    searchRes = requests.get('{0}{1}&type={2}'.format(endPoints("search"), query, type),
-                             headers = {'Authorization': 'Bearer {0}'.format(token)})
+    searchRes = requests.get(
+        '{0}{1}&type={2}&limit={3}&offset={4}'.format
+        (
+            endPoints("search"),
+            query,
+            type,
+            limit,
+            offset
+        ),
+
+        headers = {'Authorization': 'Bearer {0}'.format(token)})
 
     #check if token is still valid, if not refresh and try again
     if searchRes.status_code == 401:
         refreshToken()
 
         token = grabToken('token')
-        searchRes = requests.get('{0}{1}&type={2}'.format(endPoints("search"), query, type),
-                                 headers={'Authorization': 'Bearer {0}'.format(token)})
+        searchRes = requests.get(
+            '{0}{1}&type={2}&limit={3}&offset={4}'.format
+            (
+                endPoints("search"),
+                query,
+                type,
+                limit,
+                offset
+            ),
+
+            headers={'Authorization': 'Bearer {0}'.format(token)})
 
 
     jsonData = searchRes.json()
@@ -93,16 +115,26 @@ def search(type, query):
 
 def getArtist(artistID):
     token = grabToken('token')
-    artist = requests.get('{0}{1}'.format(endPoints("artist"), artistID),
-                             headers={'Authorization': 'Bearer {0}'.format(token)})
+    artist = requests.get('{0}{1}'.format
+    (
+        endPoints("artist"),
+        artistID
+    ),
+
+    headers={'Authorization': 'Bearer {0}'.format(token)})
 
     #check if token is still valid, if not refresh and try again
     if artist.status_code == 401:
         refreshToken()
 
         token = grabToken('token')
-        artist = requests.get('{0}{1}'.format(endPoints("artist"), artistID),
-                              headers={'Authorization': 'Bearer {0}'.format(token)})
+        artist = requests.get('{0}{1}'.format
+            (
+            endPoints("artist"),
+            artistID
+        ),
+
+            headers={'Authorization': 'Bearer {0}'.format(token)})
 
     jsonData = artist.json()
 
@@ -120,11 +152,14 @@ def getArtist(artistID):
 
 def getTrack(trackID):
     token = grabToken('token')
-    track = requests.get('{0}{1}'.format(endPoints("track"), trackID),
-                             headers={'Authorization': 'Bearer {0}'.format(token)})
-    jsonData = track.json()
+    track = requests.get('{0}{1}'.format
+    (
+        endPoints("track"),
+        trackID
+    ),
 
-    print(jsonData)
+    headers={'Authorization': 'Bearer {0}'.format(token)})
+    jsonData = track.json()
 
 def requestToken(redirect, clientID, clientSecret):
     code = grabToken('code')

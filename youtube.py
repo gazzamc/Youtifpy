@@ -4,10 +4,34 @@
 
 import requests
 import re
-from bs4 import BeautifulSoup
 import urllib.parse
 import wget
+from bs4 import BeautifulSoup
+from OAuth import *
+from functions import endPoints
 
+def youtubeSearch(query, part='id', maxRes=20):
+
+    query = urllib.parse.quote(query)
+
+    searchRes = requests.get(
+        '{0}search?part={1}&maxResults={2}&q={3}&key={4}'.format
+        (
+            endPoints("youtube"),
+            part,
+            maxRes,
+            query,
+            ytApiKey
+        ),
+
+        )
+
+    jsonData = searchRes.json()
+
+    #grab first result id only
+    videoID = jsonData['items'][0]['id']['videoId']
+
+    return videoID
 
 #Temporary workaround, using external site(s)
 def grabProtURL(ytID):
@@ -104,14 +128,14 @@ def grabUrl(ytID):
         user_agent = {'User-agent': 'Mozilla/5.0'}
         checkIfValid = requests.get(audioUrl, headers = user_agent, timeout=1.4)
 
-        print('Protected')
+        #print('Protected')
 
         ##Grab protected link
         audioUrl = grabProtURL(ytID)
         return audioUrl
 
     except requests.exceptions.ConnectionError:
-        print('Unprotected')
+        #print('Unprotected')
 
         ##Return unprotected link
         return audioUrl

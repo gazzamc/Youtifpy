@@ -152,6 +152,7 @@ def getArtist(artistID):
 
 def getTrack(trackID):
     token = grabToken('token')
+
     track = requests.get('{0}{1}'.format
     (
         endPoints("track"),
@@ -159,7 +160,26 @@ def getTrack(trackID):
     ),
 
     headers={'Authorization': 'Bearer {0}'.format(token)})
+
+    #check if token is still valid, if not refresh and try again
+    if track.status_code == 401:
+        refreshToken()
+
+        track = requests.get('{0}{1}'.format
+        (
+            endPoints("track"),
+            trackID
+        ),
+
+        headers={'Authorization': 'Bearer {0}'.format(token)})
+
     jsonData = track.json()
+    trackName = jsonData['name']
+    artistName = jsonData['artists'][0]['name']
+    trackImage = jsonData['album']['images'][1]['url']
+    popularity = jsonData['popularity']
+
+    return trackName, artistName, trackImage, popularity
 
 def requestToken(redirect, clientID, clientSecret):
     code = grabToken('code')
@@ -235,16 +255,25 @@ def prevLogin():
        print("No Previous login")
        
     else:
-        tokenFile = open( os.path.join('data', "token.txt"), 'r')
-        token = tokenFile.read()
+        token = grabToken('token')
 
         getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
-        jsonData = getUserData.json()
 
+        # check if token is still valid, if not refresh and try again
+        if getUserData.status_code == 401:
+            refreshToken()
+
+            getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
+
+        jsonData = getUserData.json()
         userName = jsonData['display_name']
         userPic = jsonData['images'][0]['url']
-        return userName, userPic
+        subscrip = jsonData['product']
 
+        if subscrip == 'open':
+            subscrip = 'Free'
+
+        return userName, userPic, subscrip
 
 def deleteData():
 

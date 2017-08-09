@@ -10,16 +10,34 @@ from functions import *
 from youtube import *
 from player import *
 import urllib
-import sys
 import os
-import threading
 from PyQt5.QtWidgets import (QStackedWidget, QLineEdit, QListView, QPushButton, QProgressBar,
                              QListWidget, QScrollBar, QTextEdit, QMenuBar, QWidget, QLCDNumber,
                              QStatusBar, QLabel, QApplication, QMainWindow, QRadioButton, QFrame,
                              QVBoxLayout, QButtonGroup, QHBoxLayout, QSizePolicy, QGridLayout, QLayout)
 from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize)
 from PyQt5.QtMultimedia import (QMediaPlayer, QMediaContent)
-from PyQt5.QtGui import (QIcon, QPixmap, QFont)
+from PyQt5.QtGui import (QIcon, QPixmap, QFont, QMovie)
+
+class LoadingWindow(QWidget):
+    def __init__(self):
+        super(LoadingWindow, self).__init__()
+        self.setWindowTitle("Youtifpy - Logging In!")
+        self.setFixedSize(400, 600)
+        self.init_ui()
+
+    def init_ui(self):
+        # logo gif
+        self.logogif = QLabel(self)
+        self.logogif.resize(300, 200)
+        self.loadingLogo = QMovie()
+        self.loadingLogo.setFileName("images\loading.gif")
+        self.logogif.setMovie(self.loadingLogo)
+        self.loadingLogo.start()
+        self.logogif.setGeometry(QRect(50, 180, 300, 200))
+
+        if (self.loadingLogo.isValid() == False):
+            self.logogif.setText('No image found!')
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -61,7 +79,6 @@ class Ui_MainWindow(object):
         self.loginBtn.clicked.connect(self.loginFunc)
 
         #get previous users data
-
         self.continueBtn = QPushButton(self.loginPage)
         self.continueBtn.setGeometry(QRect(140, 400, 121, 41))
         self.continueBtn.setObjectName("continueBtn")
@@ -89,6 +106,7 @@ class Ui_MainWindow(object):
         #logo
         self.logo = QLabel(self.loginPage)
         self.logo.resize(300, 100)
+
         self.pixmapLogo = QPixmap()
         self.pixmapLogo.load(r'images\logo', 'PNG')
         self.pixmapLogo_resized = self.pixmapLogo.scaled(300, 200)
@@ -337,6 +355,10 @@ class Ui_MainWindow(object):
             self.popLabel.hide()
 
     def loginFunc(self):
+        #show loading window and hide main
+        MainWindow.hide()
+        LoadingWindow.show()
+
         sender = self.MainWindow.sender()
         if(sender.text() == 'Login'):
             login()
@@ -345,6 +367,10 @@ class Ui_MainWindow(object):
         self.stackedWidget.setCurrentIndex(1)
         MainWindow.setFixedSize(1200, 700)
         MainWindow.setWindowTitle("Youtifpy - Home")
+
+        #show mainWindow and hide loading
+        LoadingWindow.hide()
+        MainWindow.show()
 
         #show all hidden elements
         self.searchBox.show()
@@ -499,10 +525,11 @@ class Ui_MainWindow(object):
 
 if __name__ == "__main__":
     import sys
-    app =QApplication(sys.argv)
-    MainWindow =QMainWindow()
+    app = QApplication(sys.argv)
+    MainWindow = QMainWindow()
     ui = Ui_MainWindow()
     ui.setupUi(MainWindow)
     MainWindow.show()
+    LoadingWindow = LoadingWindow()
     sys.exit(app.exec_())
 

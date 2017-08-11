@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (QStackedWidget, QLineEdit, QListView, QPushButton, 
                              QListWidget, QScrollBar, QTextEdit, QMenuBar, QWidget, QLCDNumber,
                              QStatusBar, QLabel, QApplication, QMainWindow, QRadioButton, QFrame,
                              QVBoxLayout, QButtonGroup, QHBoxLayout, QSizePolicy, QGridLayout, QLayout)
-from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize)
+from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize, QObject)
 from PyQt5.QtMultimedia import (QMediaPlayer, QMediaContent)
 from PyQt5.QtGui import (QIcon, QPixmap, QFont, QMovie)
 
@@ -35,6 +35,7 @@ class LoadingWindow(QWidget):
         self.logogif.setMovie(self.loadingLogo)
         self.loadingLogo.start()
         self.logogif.setGeometry(QRect(50, 180, 300, 200))
+        self.show()
 
         if (self.loadingLogo.isValid() == False):
             self.logogif.setText('No image found!')
@@ -85,7 +86,9 @@ class Ui_MainWindow(object):
         self.continueBtn.clicked.connect(self.loginFunc)
         self.continueBtn.hide()
 
-        if (os.path.isfile(os.path.join('data', "code.txt"))):
+        if (os.path.isfile(os.path.join('data', "code.txt")) and
+            os.path.isfile(os.path.join('data', "reftoken.txt"))):
+
             self.imageurl = prevLogin()[1]
             self.data = urllib.request.urlopen(self.imageurl).read()
             self.lastUserPic = QLabel(self.loginPage)
@@ -182,14 +185,59 @@ class Ui_MainWindow(object):
         #music player
         self.frameAlbumArt = QFrame(self.centralwidget)
         self.frameAlbumArt.setGeometry(QRect(40, 590, 100, 70))
-        self.frameAlbumArt.setFrameShape(QFrame.StyledPanel)
-        self.frameAlbumArt.setFrameShadow(QFrame.Raised)
+        #self.frameAlbumArt.setFrameShape(QFrame.StyledPanel)
+        #self.frameAlbumArt.setFrameShadow(QFrame.Raised)
         self.frameAlbumArt.setObjectName("frameAlbumArt")
-        self.frameControls = QFrame(self.centralwidget)
-        self.frameControls.setGeometry(QRect(400, 590, 381, 41))
-        self.frameControls.setFrameShape(QFrame.StyledPanel)
-        self.frameControls.setFrameShadow(QFrame.Raised)
-        self.frameControls.setObjectName("frameControls")
+
+        #player controls
+        self.controlPlay = QPushButton(self.centralwidget)
+        self.iconPlay = QIcon()
+        self.iconPlay.addFile('images\play.png')
+        self.controlPlay.setFlat(True)
+        self.controlPlay.setGeometry(QRect(604, 587, 50, 50))
+        self.controlPlay.setObjectName("controlPlay")
+        self.controlPlay.setIcon(self.iconPlay)
+        self.controlPlay.setIconSize(QSize(50, 50))
+        self.controlPlay.clicked.connect(lambda: self.controlPressed("Play"))
+
+        self.controlStop = QPushButton(self.centralwidget)
+        self.iconStop = QIcon()
+        self.iconStop.addFile(r'images\stop.png')
+        self.controlStop.setFlat(True)
+        self.controlStop.setGeometry(QRect(540, 585, 50, 50))
+        self.controlStop.setObjectName("controlStop")
+        self.controlStop.setIcon(self.iconStop)
+        self.controlStop.setIconSize(QSize(45, 45))
+
+        self.controlForw = QPushButton(self.centralwidget)
+        self.iconForw = QIcon()
+        self.iconForw.addFile(r'images\forward.png')
+        self.controlForw.setFlat(True)
+        self.controlForw.setGeometry(QRect(670, 587, 50, 50))
+        self.controlForw.setObjectName("controlForw")
+        self.controlForw.setIcon(self.iconForw)
+        self.controlForw.setIconSize(QSize(45, 45))
+
+        self.controlBack = QPushButton(self.centralwidget)
+        self.iconBack = QIcon()
+        self.iconBack.addFile(r'images\back.png')
+        self.controlBack.setFlat(True)
+        self.controlBack.setGeometry(QRect(470, 586, 50, 50))
+        self.controlBack.setObjectName("controlBack")
+        self.controlBack.setIcon(self.iconBack)
+        self.controlBack.setIconSize(QSize(45, 45))
+
+        self.controlPause = QPushButton(self.centralwidget)
+        self.iconPause = QIcon()
+        self.iconPause.addFile(r'images\pause.png')
+        self.controlPause.setFlat(True)
+        self.controlPause.setGeometry(QRect(604, 585, 50, 50))
+        self.controlPause.setObjectName("controlPause")
+        self.controlPause.setIcon(self.iconPause)
+        self.controlPause.setIconSize(QSize(45, 45))
+        self.controlPause.clicked.connect(lambda: self.controlPressed("Pause"))
+        self.controlPause.hide()
+
         self.labelSongTitle_2 = QLabel(self.centralwidget)
         self.labelSongTitle_2.setGeometry(QRect(150, 610, 81, 21))
         self.labelSongTitle_2.setObjectName("labelSongTitle_2")
@@ -294,7 +342,7 @@ class Ui_MainWindow(object):
         self.listViewPlaylists.setObjectName("listViewPlaylists")
         self.horizontalLayoutWidget.raise_()
         self.frameAlbumArt.raise_()
-        self.frameControls.raise_()
+        #self.controlPlay.raise_()
         self.labelSongTitle_2.raise_()
         self.labelSongTitle.raise_()
         self.labelNowPlaying.raise_()
@@ -337,7 +385,7 @@ class Ui_MainWindow(object):
             self.searchOp3.hide()
             self.searchOp4.hide()
             self.frameAlbumArt.hide()
-            self.frameControls.hide()
+            self.controlPlay.hide()
             self.labelSongTitle_2.hide()
             self.labelSongTitle.hide()
             self.labelNowPlaying.hide()
@@ -348,20 +396,32 @@ class Ui_MainWindow(object):
             self.labelUserName.hide()
             self.labelSubType.hide()
             self.frameAlbumArt.hide()
-            self.frameControls.hide()
             self.songArtwork.hide()
             self.artistLabel.hide()
             self.songTitleLabel.hide()
             self.popLabel.hide()
 
+    def controlPressed(self, ctrlName):
+
+        if ctrlName == "Play":
+            self.controlPlay.hide()
+            self.controlPause.show()
+
+        elif ctrlName == "Pause":
+            self.controlPause.hide()
+            self.controlPlay.show()
+
     def loginFunc(self):
         #show loading window and hide main
         MainWindow.hide()
-        LoadingWindow.show()
+        loadWindow.show()
 
         sender = self.MainWindow.sender()
         if(sender.text() == 'Login'):
-            login()
+            loginThread = createThread(login, "login_thread")
+
+            while loginThread.isAlive():
+                pass
 
         #go to main page
         self.stackedWidget.setCurrentIndex(1)
@@ -369,7 +429,7 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle("Youtifpy - Home")
 
         #show mainWindow and hide loading
-        LoadingWindow.hide()
+        loadWindow.hide()
         MainWindow.show()
 
         #show all hidden elements
@@ -380,7 +440,7 @@ class Ui_MainWindow(object):
         self.searchOp3.show()
         self.searchOp4.show()
         self.frameAlbumArt.show()
-        self.frameControls.show()
+        self.controlPlay.show()
         self.labelSongTitle_2.show()
         self.labelSongTitle.show()
         self.labelNowPlaying.show()
@@ -401,10 +461,10 @@ class Ui_MainWindow(object):
         self.pixmap.loadFromData(self.data, 'JPG')
         self.pixmap_resized = self.pixmap.scaled(50, 50)
         self.userPicSmall.setPixmap(self.pixmap_resized)
-        self.userPicSmall.setGeometry(QRect(1120, 10, 50, 50))
+        self.userPicSmall.setGeometry(QRect(1120, 10, 45, 45))
 
         self.frameAlbumArt.show()
-        self.frameControls.show()
+        #self.controlPlay.show()
 
     def clearData(self, event):
         deleteData()
@@ -530,6 +590,7 @@ if __name__ == "__main__":
     ui = Ui_MainWindow()
     ui.setupUi(MainWindow)
     MainWindow.show()
-    LoadingWindow = LoadingWindow()
+    loadWindow = LoadingWindow()
+    loadWindow.hide()
     sys.exit(app.exec_())
 

@@ -13,6 +13,21 @@ import subprocess
 import threading
 import wget
 
+
+def createThread(funcName, threadName, argsPassed=""):
+    thread = threading.Thread(target=funcName, name=threadName, args=(argsPassed))
+    thread.daemon = True
+    thread.start()
+    thread.join(1)
+    return thread
+
+def monitorThread():
+    valid = True
+
+    while valid:
+        print(threading.enumerate())
+        time.sleep(30)
+
 def auth():
     responseType = "code"
     redirect = "http://127.0.0.1:5000/"
@@ -227,7 +242,7 @@ def refreshToken():
     jsonData = getnewToken.json()
     token = jsonData['access_token']
 
-    print(jsonData)
+    #print(jsonData)
     #store token
     tokenFile = open( os.path.join('data', "token.txt"), 'w')
     tokenFile.write(token)
@@ -252,28 +267,28 @@ def grabToken(tokenType):
 
 def prevLogin():
     if not(os.path.isfile(os.path.join('data', "token.txt"))):
-       print("No Previous login")
+       refreshToken()
        
-    else:
-        token = grabToken('token')
+
+    token = grabToken('token')
+
+    getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
+
+    # check if token is still valid, if not refresh and try again
+    if getUserData.status_code == 401:
+        refreshToken()
 
         getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
 
-        # check if token is still valid, if not refresh and try again
-        if getUserData.status_code == 401:
-            refreshToken()
+    jsonData = getUserData.json()
+    userName = jsonData['display_name']
+    userPic = jsonData['images'][0]['url']
+    subscrip = jsonData['product']
 
-            getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
+    if subscrip == 'open':
+        subscrip = 'Free'
 
-        jsonData = getUserData.json()
-        userName = jsonData['display_name']
-        userPic = jsonData['images'][0]['url']
-        subscrip = jsonData['product']
-
-        if subscrip == 'open':
-            subscrip = 'Free'
-
-        return userName, userPic, subscrip
+    return userName, userPic, subscrip
 
 def deleteData():
 
@@ -307,10 +322,8 @@ def login():
         prevLogin()
         
     else:
-        server = threading.Thread(target=run_server)
-        server.daemon = True
-        server.start()
-
+        createThread(run_server, "server_thread")
+        createThread(monitorThread, "monitor_thread")
         auth()
 
         while not(os.path.isfile(os.path.join('data', "code.txt"))):

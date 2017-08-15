@@ -6,18 +6,46 @@
 #
 # WARNING! All changes made in this file will be lost!
 
-from functions import *
-from youtube import *
-from player import *
 import urllib
 import os
 from PyQt5.QtWidgets import (QStackedWidget, QLineEdit, QListView, QPushButton, QProgressBar,
-                             QListWidget, QScrollBar, QTextEdit, QMenuBar, QWidget, QLCDNumber,
+                             QListWidget, QSlider, QTextEdit, QMenuBar, QWidget, QLCDNumber,
                              QStatusBar, QLabel, QApplication, QMainWindow, QRadioButton, QFrame,
-                             QVBoxLayout, QButtonGroup, QHBoxLayout, QSizePolicy, QGridLayout, QLayout)
-from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize, QObject)
-from PyQt5.QtMultimedia import (QMediaPlayer, QMediaContent)
+                             QVBoxLayout, QMenu, QHBoxLayout, QSizePolicy, QGridLayout, QLayout)
+from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize, QPoint, QObject, QUrl)
+from PyQt5.QtMultimedia import (QMediaPlayer, QMediaContent, QMediaPlaylist)
 from PyQt5.QtGui import (QIcon, QPixmap, QFont, QMovie)
+from functions import *
+from youtube import *
+from player import *
+
+# create worker thread for login / prevent gui from freezing
+class LoginWorker(QObject):
+    done = pyqtSignal()
+
+    def login(self):
+        login()
+        self.done.emit()
+
+    #for identification in loggedIn function
+    def text(self):
+        return 'Login'
+
+# grab youtube url and return it
+class GetVideoDetails(QObject):
+    result = pyqtSignal(str)
+
+    def __init__(self, var):
+        super(GetVideoDetails, self).__init__()
+        self.name = var
+        #print(self.name)
+
+    # Grabbing audio details
+    def getDetails(self):
+        self.videoDetails = youtubeSearch(self.name)
+        self.url = grabUrl(self.videoDetails)
+        print(self.url)
+        self.result.emit(self.url)
 
 class LoadingWindow(QWidget):
     def __init__(self):
@@ -35,7 +63,7 @@ class LoadingWindow(QWidget):
         self.logogif.setMovie(self.loadingLogo)
         self.loadingLogo.start()
         self.logogif.setGeometry(QRect(50, 180, 300, 200))
-        self.show()
+        #self.show()
 
         if (self.loadingLogo.isValid() == False):
             self.logogif.setText('No image found!')
@@ -68,10 +96,12 @@ class Ui_MainWindow(object):
         self.stackedWidget.setMinimumSize( QSize(600, 0))
         self.stackedWidget.setObjectName("stackedWidget")
 
-        #audio player
-        self.player = QMediaPlayer()
+        # audio player
+        self.player = QMediaPlayer(flags=QMediaPlayer.StreamPlayback)
+        self.playlist = QMediaPlaylist()
+        self.playlist.setPlaybackMode(0)
 
-        #login page
+        # login page
         self.loginPage = QWidget()
         self.loginPage.setObjectName("loginPage")
         self.loginBtn = QPushButton(self.loginPage)
@@ -79,34 +109,38 @@ class Ui_MainWindow(object):
         self.loginBtn.setObjectName("loginBtn")
         self.loginBtn.clicked.connect(self.loginFunc)
 
-        #get previous users data
+        # get previous users data
         self.continueBtn = QPushButton(self.loginPage)
         self.continueBtn.setGeometry(QRect(140, 400, 121, 41))
         self.continueBtn.setObjectName("continueBtn")
-        self.continueBtn.clicked.connect(self.loginFunc)
+        self.continueBtn.clicked.connect(self.loggedIn)
         self.continueBtn.hide()
 
         if (os.path.isfile(os.path.join('data', "code.txt")) and
             os.path.isfile(os.path.join('data', "reftoken.txt"))):
 
-            self.imageurl = prevLogin()[1]
-            self.data = urllib.request.urlopen(self.imageurl).read()
-            self.lastUserPic = QLabel(self.loginPage)
-            self.lastUserPic.resize(200,200)
-            self.pixmap = QPixmap()
-            self.pixmap.loadFromData(self.data, 'JPG')
-            self.pixmap_resized = self.pixmap.scaled(140, 140)
-            self.lastUserPic.setPixmap(self.pixmap_resized)
-            self.lastUserPic.setGeometry(QRect(130, 170, 140, 140))
-            self.name = QLabel("Last Login: {0}".format(prevLogin()[0]), self.loginPage)
-            self.name.setMinimumSize(150, 15)
-            self.name.move(130, 310)
-            self.notYou = QLabel('(Not You?)', self.loginPage)
-            self.notYou.move(130, 325)
-            self.notYou.mousePressEvent = self.clearData
-            self.continueBtn.show()
+            try:
+                self.imageurl = prevLogin()[1]
+                self.data = urllib.request.urlopen(self.imageurl).read()
+                self.lastUserPic = QLabel(self.loginPage)
+                self.lastUserPic.resize(200,200)
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(140, 140)
+                self.lastUserPic.setPixmap(self.pixmap_resized)
+                self.lastUserPic.setGeometry(QRect(130, 170, 140, 140))
+                self.name = QLabel("Last Login: {0}".format(prevLogin()[0]), self.loginPage)
+                self.name.setMinimumSize(150, 15)
+                self.name.move(130, 310)
+                self.notYou = QLabel('(Not You?)', self.loginPage)
+                self.notYou.move(130, 325)
+                self.notYou.mousePressEvent = self.clearData
+                self.continueBtn.show()
 
-        #logo
+            except requests.exceptions.ConnectionError:
+                pass
+
+        # logo
         self.logo = QLabel(self.loginPage)
         self.logo.resize(300, 100)
 
@@ -119,12 +153,12 @@ class Ui_MainWindow(object):
 
         self.stackedWidget.addWidget(self.loginPage)
 
-        #main page
+        # main page
         self.mainPage = QWidget()
         self.mainPage.setObjectName("mainPage")
         self.stackedWidget.addWidget(self.mainPage)
 
-        #result page
+        # result page
         self.resultPage = QWidget()
         self.resultPage.setObjectName("resultPage")
         self.labelSearch = QLabel(self.resultPage)
@@ -143,7 +177,11 @@ class Ui_MainWindow(object):
         self.resultList.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.resultList.setObjectName("resultList")
         self.resultList.itemClicked.connect(self.resultClick)
+        self.resultList.itemDoubleClicked.connect(lambda: self.mediaState.setText("Media Loading..."))
         self.resultList.itemDoubleClicked.connect(self.resultDoubleClick)
+        self.resultList.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.resultList.customContextMenuRequested.connect(self.listItemRightClicked)
+
 
         self.songArtwork = QLabel(self.resultPage)
         self.songArtwork.setObjectName("songArtwork")
@@ -161,35 +199,50 @@ class Ui_MainWindow(object):
         self.popLabel.setObjectName("popLabel")
         self.stackedWidget.addWidget(self.resultPage)
 
-        #artist page
+        # artist page
         self.artistPage = QWidget()
         self.artistPage.setObjectName("artistPage")
+        self.artistTitle = QLabel(self.artistPage)
+        self.artistTitle.setText("Artist")
+        self.artistTitle.setGeometry(QRect(580, 415, 221, 31))
+        self.artistTitle.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
+        self.artistTitle.setObjectName("artistTitleLabel")
         self.stackedWidget.addWidget(self.artistPage)
 
-        #album page
+        # album page
         self.albumPage = QWidget()
         self.albumPage.setObjectName("albumPage")
+        self.albumTitle = QLabel(self.albumPage)
+        self.albumTitle.setText("Album")
+        self.albumTitle.setGeometry(QRect(580, 415, 221, 31))
+        self.albumTitle.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
+        self.albumTitle.setObjectName("albumTitleLabel")
         self.stackedWidget.addWidget(self.albumPage)
 
-        #playlist page
+        # playlist page
         self.playlistPage = QWidget()
         self.playlistPage.setObjectName("playlistPage")
+        self.playlistTitle = QLabel(self.playlistPage)
+        self.playlistTitle.setText("Playlist")
+        self.playlistTitle.setGeometry(QRect(580, 415, 221, 31))
+        self.playlistTitle.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
+        self.playlistTitle.setObjectName("playlistTitleLabel")
         self.stackedWidget.addWidget(self.playlistPage)
 
-        #settings page
+        # settings page
         self.settingsPage = QWidget()
         self.settingsPage.setObjectName("settingsPage")
         self.stackedWidget.addWidget(self.settingsPage)
         self.gridLayoutCenter.addWidget(self.stackedWidget, 0, 0, 1, 1)
 
-        #music player
+        # music player
         self.frameAlbumArt = QFrame(self.centralwidget)
         self.frameAlbumArt.setGeometry(QRect(40, 590, 100, 70))
         #self.frameAlbumArt.setFrameShape(QFrame.StyledPanel)
         #self.frameAlbumArt.setFrameShadow(QFrame.Raised)
         self.frameAlbumArt.setObjectName("frameAlbumArt")
 
-        #player controls
+        # player controls
         self.controlPlay = QPushButton(self.centralwidget)
         self.iconPlay = QIcon()
         self.iconPlay.addFile('images\play.png')
@@ -238,6 +291,12 @@ class Ui_MainWindow(object):
         self.controlPause.clicked.connect(lambda: self.controlPressed("Pause"))
         self.controlPause.hide()
 
+        self.mediaState = QLabel(self.centralwidget)
+        self.mediaState.setText("No Media Loaded")
+        self.mediaState.setAlignment(Qt.AlignHCenter| Qt.AlignVCenter)
+        self.mediaState.setGeometry(QRect(543, 660, 100, 16))
+        self.mediaState.setObjectName("mediaState")
+
         self.labelSongTitle_2 = QLabel(self.centralwidget)
         self.labelSongTitle_2.setGeometry(QRect(150, 610, 81, 21))
         self.labelSongTitle_2.setObjectName("labelSongTitle_2")
@@ -251,22 +310,36 @@ class Ui_MainWindow(object):
         font.setWeight(75)
         self.labelNowPlaying.setFont(font)
         self.labelNowPlaying.setObjectName("labelNowPlaying")
-        self.lcdNumber = QLCDNumber(self.centralwidget)
-        self.lcdNumber.setGeometry(QRect(750, 640, 31, 16))
-        self.lcdNumber.setProperty("value", 2.0)
-        self.lcdNumber.setObjectName("lcdNumber")
+
+        self.currSongPos = QLabel(self.centralwidget)
+        self.currSongPos.setGeometry(QRect(750, 635, 61, 16))
+        self.currSongPos.setText("-.-")
+
+        self.currSongDur = QLabel(self.centralwidget)
+        self.currSongDur.setGeometry(QRect(775, 635, 61, 16))
+        self.currSongDur.setText("/ -.-")
+
         self.progressMusic = QProgressBar(self.centralwidget)
-        self.progressMusic.setGeometry(QRect(400, 640, 341, 16))
+        self.progressMusic.setGeometry(QRect(445, 640, 300, 5))
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.progressMusic.sizePolicy().hasHeightForWidth())
         self.progressMusic.setSizePolicy(sizePolicy)
-        self.progressMusic.setProperty("value", 24)
+        self.progressMusic.setProperty("value", 0)
         self.progressMusic.setTextVisible(False)
         self.progressMusic.setObjectName("progressMusic")
 
-        #search
+        # volume slider
+        self.volumeControl = QSlider(self.centralwidget)
+        self.volumeControl.setGeometry(QRect(445, 650, 200, 10))
+        self.volumeControl.setObjectName("volumeControl")
+        self.volumeControl.setOrientation(Qt.Horizontal)
+        self.volumeControl.setMaximum(100)
+        self.volumeControl.setValue(30)
+        self.volumeControl.valueChanged.connect(self.changeVolumeVal)
+
+        # search
         self.searchBox = QLineEdit(self.centralwidget)
         self.searchBox.setGeometry(QRect(44, 31, 501, 20))
         sizePolicy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
@@ -286,7 +359,7 @@ class Ui_MainWindow(object):
         self.searchBtn.setObjectName("searchBtn")
         self.searchBtn.clicked.connect(self.getSearchParms)
 
-        #user info
+        # user info
         self.userPicSmall = QLabel(self.centralwidget)
         self.userPicSmall.resize(300, 100)
         self.userPicSmall.setGeometry(QRect(1110, 10, 71, 51))
@@ -298,23 +371,31 @@ class Ui_MainWindow(object):
         self.labelSubType.setGeometry(QRect(1000, 30, 141, 20))
         self.labelSubType.setObjectName("labelSubType")
 
-        #search options
+        # search options
         self.searchOp1 = QRadioButton(self.centralwidget)
         self.searchOp1.setGeometry( QRect(660, 30, 70, 17))
         self.searchOp1.setChecked(True)
         self.searchOp1.setObjectName("radioButton")
+        self.searchOp1.toggled.connect(self.getSearchParms)  # On toggle change re-search with new params/toggle
+
         self.searchOp2 = QRadioButton(self.centralwidget)
         self.searchOp2.setGeometry( QRect(720, 30, 70, 17))
         self.searchOp2.setObjectName("radioButton_2")
+        self.searchOp2.toggled.connect(self.getSearchParms)
+
         self.searchOp3 = QRadioButton(self.centralwidget)
         self.searchOp3.setGeometry( QRect(780, 30, 70, 17))
         self.searchOp3.setObjectName("radioButton_3")
+        self.searchOp3.toggled.connect(self.getSearchParms)
+
         self.searchOp4 = QRadioButton(self.centralwidget)
         self.searchOp4.setGeometry( QRect(840, 30, 70, 17))
         self.searchOp4.setObjectName("radioButton_4")
+        self.searchOp4.toggled.connect(self.getSearchParms)
+
         self.searchOps = [self.searchOp1, self.searchOp2, self.searchOp3, self.searchOp4]
 
-        #playlists
+        # playlists
         self.label =QLabel(self.centralwidget)
         self.label.setGeometry( QRect(990, 70, 191, 21))
         font = QFont()
@@ -346,7 +427,6 @@ class Ui_MainWindow(object):
         self.labelSongTitle_2.raise_()
         self.labelSongTitle.raise_()
         self.labelNowPlaying.raise_()
-        self.lcdNumber.raise_()
         self.progressMusic.raise_()
         self.searchBox.raise_()
         self.searchBtn.raise_()
@@ -372,7 +452,7 @@ class Ui_MainWindow(object):
         self.stackedWidget.setCurrentIndex(0)
         QMetaObject.connectSlotsByName(MainWindow)
 
-        #hiding stuff if on login page
+        # hiding stuff if on login page
         if self.stackedWidget.currentIndex() == 0:
 
             MainWindow.setFixedSize(400, 600)
@@ -389,7 +469,6 @@ class Ui_MainWindow(object):
             self.labelSongTitle_2.hide()
             self.labelSongTitle.hide()
             self.labelNowPlaying.hide()
-            self.lcdNumber.hide()
             self.progressMusic.hide()
             self.label.hide()
             self.listViewPlaylists.hide()
@@ -400,39 +479,109 @@ class Ui_MainWindow(object):
             self.artistLabel.hide()
             self.songTitleLabel.hide()
             self.popLabel.hide()
+            self.mediaState.hide()
 
-    def controlPressed(self, ctrlName):
+    def changeVolumeVal(self, val):
+        self.player.setVolume(val)
 
-        if ctrlName == "Play":
+    def songPosChanged(self):
+
+        self.curPos = self.player.position()
+
+        self.progressMusic.setProperty("value", (self.curPos / 1000))
+
+    def listItemRightClicked(self, QPos):
+
+        self.listMenu = QMenu()
+        self.menuItems = []
+
+        for self.searchOp in self.searchOps:
+            if self.searchOp.isChecked():
+                self.option = self.searchOp.text()
+                break
+
+        if self.option == "track":
+            self.menuOps = ["Play Now", "Play Next"]
+
+        elif self.option == "artist":
+            self.menuOps = ["Artist Page"]
+
+        elif self.option == "playlist":
+            self.menuOps = ["View Playlist"]
+
+        else:
+            self.menuOps = ["View Album", "View Artist"]
+
+        for i in range(0, len(self.menuOps)):
+            self.menuItems.append(self.listMenu.addAction(self.menuOps[i]))
+
+        if self.option == "track":
+            self.menuItems[0].triggered.connect(lambda: self.itemClicked(self.menuItems[0].text()))
+            self.menuItems[1].triggered.connect(lambda: self.itemClicked(self.menuItems[1].text()))
+
+        elif self.option == "artist":
+            self.menuItems[0].triggered.connect(lambda: self.itemClicked(self.menuItems[0].text()))
+
+        elif self.option == "playlist":
+            self.menuItems[0].triggered.connect(lambda: self.itemClicked(self.menuItems[0].text()))
+
+        else:
+            self.menuItems[0].triggered.connect(lambda: self.itemClicked(self.menuItems[0].text()))
+            self.menuItems[1].triggered.connect(lambda: self.itemClicked(self.menuItems[1].text()))
+
+        self.parentPosition = self.resultList.mapToGlobal(QPoint(0, 0))
+        self.listMenu.move(self.parentPosition + QPos)
+        self.listMenu.show()
+
+    def itemClicked(self, name):
+
+        if name == "Play Now":
+            self.resultDoubleClick()
+
+        elif name == "Artist Page":
+            self.stackedWidget.setCurrentIndex(3)
+
+        elif name == "Album Page":
+            self.stackedWidget.setCurrentIndex(4)
+
+        elif name == "Playlist Page":
+            self.stackedWidget.setCurrentIndex(5)
+
+        else:
+            # check if playlist is empty
+            self.playlist.isEmpty()
+
+    def controlPressed(self, ctrlName="", state=0):
+
+        if ctrlName == "Play" or state == 1:
+
             self.controlPlay.hide()
             self.controlPause.show()
+            self.player.play()
 
-        elif ctrlName == "Pause":
+        elif ctrlName == "Pause" or state == 0 \
+                                 or state == 2:
+
             self.controlPause.hide()
             self.controlPlay.show()
+            self.player.pause()
 
-    def loginFunc(self):
-        #show loading window and hide main
-        MainWindow.hide()
-        loadWindow.show()
+        elif ctrlName == "Stop":
+            self.player.stop()
+
+    def loggedIn(self):
 
         sender = self.MainWindow.sender()
-        if(sender.text() == 'Login'):
-            loginThread = createThread(login, "login_thread")
 
-            while loginThread.isAlive():
-                pass
+        if sender.text() == "Login":
+            self.loading.hide()
 
-        #go to main page
+        # go to main page
         self.stackedWidget.setCurrentIndex(1)
         MainWindow.setFixedSize(1200, 700)
         MainWindow.setWindowTitle("Youtifpy - Home")
 
-        #show mainWindow and hide loading
-        loadWindow.hide()
-        MainWindow.show()
-
-        #show all hidden elements
+        # show all hidden elements
         self.searchBox.show()
         self.searchBtn.show()
         self.searchOp1.show()
@@ -444,8 +593,8 @@ class Ui_MainWindow(object):
         self.labelSongTitle_2.show()
         self.labelSongTitle.show()
         self.labelNowPlaying.show()
-        self.lcdNumber.show()
         self.progressMusic.show()
+        self.mediaState.show()
         self.label.show()
         self.listViewPlaylists.show()
         self.labelUserName.show()
@@ -453,7 +602,7 @@ class Ui_MainWindow(object):
         self.labelSubType.show()
         self.labelSubType.setText('Subscription: {0}'.format(prevLogin()[2]))
 
-        #get user picture
+        # get user picture
         self.imageurl = prevLogin()[1]
         self.data = urllib.request.urlopen(self.imageurl).read()
         self.userPicSmall.resize(50, 50)
@@ -463,8 +612,32 @@ class Ui_MainWindow(object):
         self.userPicSmall.setPixmap(self.pixmap_resized)
         self.userPicSmall.setGeometry(QRect(1120, 10, 45, 45))
 
-        self.frameAlbumArt.show()
-        #self.controlPlay.show()
+        # show mainWindow
+        MainWindow.show()
+
+    def loginFunc(self):
+        MainWindow.hide()
+
+        sender = self.MainWindow.sender()
+        if(sender.text() == 'Login'):
+
+            #create seperate thread for login function
+            self.thread = QThread()
+            self.worker = LoginWorker()
+            self.worker.moveToThread(self.thread)
+
+            self.thread.started.connect(self.worker.login)
+            self.thread.finished.connect(self.thread.deleteLater)
+            self.worker.done.connect(lambda: self.loggedIn())
+
+            self.loading = LoadingWindow()
+            self.loading.show()
+
+            #start work
+            self.thread.start()
+
+        else:
+            self.loggedIn()
 
     def clearData(self, event):
         deleteData()
@@ -473,8 +646,24 @@ class Ui_MainWindow(object):
         self.notYou.hide()
         self.continueBtn.hide()
 
-
     def getSearchParms(self):
+
+        # Prevents function being called twice by
+        # toggle. Probably unnecessary but i like
+        # the feature
+
+        self.getSender = self.MainWindow.sender()
+
+        for self.searchOp in self.searchOps:
+            if self.searchOp.isChecked():
+                self.toggled = self.searchOp
+                break
+
+        if self.getSender == self.toggled:
+            return
+
+        #######################################
+
         self.searchText = self.searchBox.text()
 
         if self.searchText == '':
@@ -485,10 +674,10 @@ class Ui_MainWindow(object):
 
         for self.searchOp in self.searchOps:
             if self.searchOp.isChecked():
-                option = self.searchOp.text()
+                self.option = self.searchOp.text()
                 break
         try:
-            self.results = search(str(option), self.searchText, 30)
+            self.results = search(str(self.option), self.searchText, 30)
 
             for self.result in self.results[0]:
 
@@ -497,34 +686,33 @@ class Ui_MainWindow(object):
                 self.stackedWidget.setCurrentIndex(2)
                 MainWindow.setWindowTitle("Youtifpy - Search Results")
 
-
         except requests.exceptions.ConnectionError:
 
             self.item = 'No Internet Connection'
             self.resultList.addItem(self.item)
 
-    #display song info
+    # display song info
     def resultClick(self):
 
         for self.searchOp in self.searchOps:
             if self.searchOp.isChecked():
-                option = self.searchOp.text()
+                self.option = self.searchOp.text()
                 break
 
-        name = self.resultList.currentItem().text()
+        self.name = self.resultList.currentItem().text()
 
-        if name == 'No Internet Connection':
+        if self.name == 'No Internet Connection':
             return
 
-        id = self.resultList.currentRow()
+        self.id = self.resultList.currentRow()
 
-        if option == 'artist':
-           getArtist(self.results[1][id])
+        if self.option == 'artist':
+            self.artistInfo = getData(self.results[1][self.id], self.option)
 
-        elif option == 'track':
-            trackInfo = getTrack(self.results[1][id])
+        elif self.option == 'track':
+            self.trackInfo = getData(self.results[1][self.id], self.option)
 
-            self.imageurl = trackInfo[2]
+            self.imageurl = self.trackInfo[2]
             self.data = urllib.request.urlopen(self.imageurl).read()
             self.songArtwork.resize(300, 300)
             self.pixmap = QPixmap()
@@ -533,33 +721,92 @@ class Ui_MainWindow(object):
             self.songArtwork.setPixmap(self.pixmap_resized)
             self.songArtwork.setGeometry(QRect(580, 100, 300, 300))
 
-            self.artistLabel.setText("Artist: {0}".format(trackInfo[1]))
-            self.songTitleLabel.setText("Song: {0}".format(trackInfo[0]))
-            self.popLabel.setText("Popularity: {0}".format(trackInfo[3]))
+            self.artistLabel.setText("Artist: {0}".format(self.trackInfo[1]))
+            self.songTitleLabel.setText("Song: {0}".format(self.trackInfo[0]))
+            self.popLabel.setText("Popularity: {0}".format(self.trackInfo[3]))
 
             self.songArtwork.show()
             self.artistLabel.show()
             self.songTitleLabel.show()
             self.popLabel.show()
 
-        elif option == 'album':
-            getAlbum(self.results[1][id])
+        elif self.option == 'album':
+            self.albumInfo = getData(self.results[1][self.id], self.option)
 
         else:
-            getPlaylist(id)
+            self.playlistInfo = getData(self.results[1][self.id], self.option, self.results[3][self.id])
 
-    #play song
-    def resultDoubleClick(self):
-        name = self.resultList.currentItem().text()
-        if name == 'No Internet Connection':
+    # play song
+    def resultDoubleClick(self, string=""):
+
+        self.mediaState.setText("Media Loaded")
+        self.name = self.resultList.currentItem().text()
+        if self.name == 'No Internet Connection':
             return
 
-        videoId = youtubeSearch(name)
-        url = grabUrl(videoId)
+        self.controlPlay.hide()
+        self.controlPause.show()
 
-        self.addMedia = playAudio(self.player, 'audio', True)
-        self.addMedia.play()
+        # create thread/worker to get details
+        self.thread = QThread()
+        self.worker = GetVideoDetails(self.name)
+        self.worker.moveToThread(self.thread)
 
+        self.thread.started.connect(self.worker.getDetails)
+        self.worker.result.connect(self.playSong)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.thread.start()
+
+
+
+    def playSong(self, url):
+
+        self.url = url
+
+        download = False
+
+        self.audioFile = QUrl()
+
+        if not download:
+
+            self.audioFile = QUrl(self.url)
+            self.media = QMediaContent(self.audioFile)
+            self.playlist.clear()
+            self.playlist.addMedia(self.media)
+            self.player.setMedia(self.media)
+
+        else:
+
+            self.audioFile = self.audioFile.fromLocalFile(os.path.join('music', "audio.mp3"))
+            self.media = QMediaContent(self.audioFile)
+            self.playlist.clear()
+            self.playlist.addMedia(self.media)
+
+        #self.playlist.setCurrentIndex(0)
+        self.player.setPlaylist(self.playlist)
+        self.player.setVolume(self.volumeControl.value())
+        self.player.stateChanged.connect(lambda: self.controlPressed("", self.player.state()))
+        self.player.positionChanged.connect(lambda: self.songPosChanged())
+
+        self.player.durationChanged.connect(self.setDuration)
+        self.player.positionChanged.connect(self.posChanged)
+        self.player.play()
+
+    # set max duration for progress bar
+    def setDuration(self, val):
+        self.progressMusic.setMaximum(val)
+        self.progressMusic.setTextVisible(False)
+
+        self.currSongDur.setText("/ {0}:{1}".format(int(val/60000), round(((float(val % 60000)))/1000)))
+
+    # update progress bar with current position
+    def posChanged(self, val):
+        self.progressMusic.setProperty('value', val)
+
+        if round(((float(val % 60000))) / 1000) < 10:
+            self.currSongPos.setText("{0}:0{1}".format(int(val / 60000), round(((float(val % 60000))) / 1000)))
+        else:
+            self.currSongPos.setText("{0}:{1}".format(int(val / 60000), round(((float(val % 60000))) / 1000)))
 
     def retranslateUi(self, MainWindow):
         _translate =  QCoreApplication.translate
@@ -584,13 +831,13 @@ class Ui_MainWindow(object):
         self.label.setText(_translate("MainWindow", "Playlists"))
 
 if __name__ == "__main__":
-    import sys
-    app = QApplication(sys.argv)
-    MainWindow = QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    loadWindow = LoadingWindow()
-    loadWindow.hide()
-    sys.exit(app.exec_())
+        import sys
+        app = QApplication(sys.argv)
+        MainWindow = QMainWindow()
+        ui = Ui_MainWindow()
+        ui.setupUi(MainWindow)
+        MainWindow.show()
+        loadWindow = LoadingWindow()
+        loadWindow.hide()
+        sys.exit(app.exec_())
 

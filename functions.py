@@ -21,13 +21,6 @@ def createThread(funcName, threadName, argsPassed=""):
     thread.join(1)
     return thread
 
-def monitorThread():
-    valid = True
-
-    while valid:
-        print(threading.enumerate())
-        time.sleep(30)
-
 def auth():
     responseType = "code"
     redirect = "http://127.0.0.1:5000/"
@@ -69,6 +62,12 @@ def endPoints(endpoint):
     elif endpoint == "track":
         fullUrl = '{0}v1/tracks/'.format(apiBaseUrl)
 
+    elif endpoint == "album":
+        fullUrl = '{0}v1/albums/'.format(apiBaseUrl)
+
+    elif endpoint == "user":
+        fullUrl = '{0}v1/users/'.format(apiBaseUrl)
+
     elif endpoint == "youtube":
         fullUrl = '{0}youtube/v3/'.format(ytBaseUrl)
 
@@ -93,7 +92,7 @@ def search(type, query, limit=20, offset=0):
 
         headers = {'Authorization': 'Bearer {0}'.format(token)})
 
-    #check if token is still valid, if not refresh and try again
+    # check if token is still valid, if not refresh and try again
     if searchRes.status_code == 401:
         refreshToken()
 
@@ -117,84 +116,76 @@ def search(type, query, limit=20, offset=0):
     nameResult = []
     idResult = []
     artistResult = []
+    userIdResult = []
 
     for result in results:
         nameResult.append(result['name'])
         idResult.append(result['id'])
 
+        if type == 'playlist':
+            userIdResult.append(result['owner']['id'])
+
         if type == 'track':
             for artist in result['artists']:
                 artistResult.append(artist['name'])
 
-    return nameResult, idResult, artistResult
+    print(userIdResult)
 
-def getArtist(artistID):
-    token = grabToken('token')
-    artist = requests.get('{0}{1}'.format
-    (
-        endPoints("artist"),
-        artistID
-    ),
+    return nameResult, idResult, artistResult, userIdResult
 
-    headers={'Authorization': 'Bearer {0}'.format(token)})
+# using this for all data fetching(track, album etc), removing redundant functions
 
-    #check if token is still valid, if not refresh and try again
-    if artist.status_code == 401:
-        refreshToken()
+def getData(id, dataType, userID=""):
 
-        token = grabToken('token')
-        artist = requests.get('{0}{1}'.format
-            (
-            endPoints("artist"),
-            artistID
-        ),
-
-            headers={'Authorization': 'Bearer {0}'.format(token)})
-
-    jsonData = artist.json()
-
-    artistDetails = [
-
-        jsonData['uri'],
-        jsonData['id'],
-        jsonData['images'][0]['url'],
-        jsonData['name'],
-        jsonData['genres'],
-        jsonData['popularity'],
-    ]
-
-    return artistDetails
-
-def getTrack(trackID):
+    print(dataType)
     token = grabToken('token')
 
-    track = requests.get('{0}{1}'.format
-    (
-        endPoints("track"),
-        trackID
-    ),
+    # playlist url is structured a bit differently
+    # needs a users id
+    if dataType == 'playlist':
 
-    headers={'Authorization': 'Bearer {0}'.format(token)})
-
-    #check if token is still valid, if not refresh and try again
-    if track.status_code == 401:
-        refreshToken()
-
-        track = requests.get('{0}{1}'.format
+        endPointData = ('{0}{1}{2}{3}'.format
         (
-            endPoints("track"),
-            trackID
-        ),
+            endPoints('user'),
+            userID,
+            '/playlists/',
+            id
+        ))
 
-        headers={'Authorization': 'Bearer {0}'.format(token)})
+    else:
 
-    jsonData = track.json()
-    trackName = jsonData['name']
-    artistName = jsonData['artists'][0]['name']
-    trackImage = jsonData['album']['images'][1]['url']
-    popularity = jsonData['popularity']
+        endPointData = ('{0}{1}'.format
+            (
+            endPoints(dataType),
+            id
+        ))
 
-    return trackName, artistName, trackImage, popularity
+    item = requests.get(endPointData, headers={'Authorization': 'Bearer {0}'.format(token)})
+
+    # check if token is still valid, if not refresh and try again
+    if item.status_code == 401:
+        refreshToken()
+
+        item = requests.get(endPointData, headers={'Authorization': 'Bearer {0}'.format(token)})
+
+    jsonData = item.json()
+
+    if dataType == "track":
+        trackName = jsonData['name']
+        artistName = jsonData['artists'][0]['name']
+        trackImage = jsonData['album']['images'][1]['url']
+        popularity = jsonData['popularity']
+
+        return trackName, artistName, trackImage, popularity
+
+    elif dataType == "artist":
+        print(jsonData)
+
+    elif dataType == "album":
+        print(jsonData)
+
+    elif dataType == "playlist":
+        print(jsonData)
 
 def requestToken(redirect, clientID, clientSecret):
     code = grabToken('code')
@@ -209,18 +200,18 @@ def requestToken(redirect, clientID, clientSecret):
     )
 
     if(getToken.status_code == 200):
-        #extract token and expiry time
+        # extract token and expiry time
         jsonData = getToken.json()
         expires = jsonData['expires_in']
         token = jsonData['access_token']
         rToken = jsonData['refresh_token']
         
-        #store token
+        # store token
         tokenFile = open(os.path.join('data', "token.txt"), 'w')
         tokenFile.write(token)
         tokenFile.close()
 
-        #store refresh token
+        # store refresh token
         refTokenFile = open(os.path.join('data', "reftoken.txt"), 'w')
         refTokenFile.write(rToken)
         refTokenFile.close()
@@ -242,8 +233,7 @@ def refreshToken():
     jsonData = getnewToken.json()
     token = jsonData['access_token']
 
-    #print(jsonData)
-    #store token
+    # store token
     tokenFile = open( os.path.join('data', "token.txt"), 'w')
     tokenFile.write(token)
     tokenFile.close()
@@ -272,12 +262,12 @@ def prevLogin():
 
     token = grabToken('token')
 
-    getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
+    getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)}, timeout=1)
 
     # check if token is still valid, if not refresh and try again
     if getUserData.status_code == 401:
         refreshToken()
-
+        token = grabToken('token')
         getUserData = requests.get(endPoints("userData"), headers = {'Authorization': 'Bearer {0}'.format(token)})
 
     jsonData = getUserData.json()
@@ -309,7 +299,7 @@ def login():
        os.path.isfile(os.path.join('data', "reftoken.txt")) and
        os.path.isfile(os.path.join('data', "token.txt"))):
         
-        #check if we have a valid code
+        # check if we have a valid code
         codeFile = open(os.path.join('data', "code.txt"), 'r')
         code = codeFile.read()
 
@@ -323,7 +313,6 @@ def login():
         
     else:
         createThread(run_server, "server_thread")
-        createThread(monitorThread, "monitor_thread")
         auth()
 
         while not(os.path.isfile(os.path.join('data', "code.txt"))):

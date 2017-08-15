@@ -43,7 +43,7 @@ def grabProtURL(ytID):
     links = html.findAll('a', href=True)
 
     for link in links:
-        audio = str(link).find('itag=140')
+        audio = str(link).find('itag=36')
 
         if audio != -1:
             l = re.search('{0}(.+?){1}'.format('href="','"'), str(link))
@@ -125,17 +125,10 @@ def grabUrl(ytID):
     #initcwndbps = findString(str(audioUrlUnformatted),'initcwndbps%3D', '%')
 
     try:
-        user_agent = {'User-agent': 'Mozilla/5.0'}
-        checkIfValid = requests.get(audioUrl, headers = user_agent, timeout=1.4)
-
-        #print('Protected')
-
-        ##Grab protected link
+        # Grab protected link
         audioUrl = grabProtURL(ytID)
         return audioUrl
 
     except requests.exceptions.ConnectionError:
-        #print('Unprotected')
 
-        ##Return unprotected link
         return audioUrl

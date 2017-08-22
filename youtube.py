@@ -4,8 +4,40 @@
 
 import requests
 import re
-from bs4 import BeautifulSoup
 import urllib.parse
+import wget
+from bs4 import BeautifulSoup
+from OAuth import *
+from functions import endPoints
+
+def youtubeSearch(query, name, part='id', maxRes=20):
+
+    query = urllib.parse.quote("{0} {1}".format(query, name))
+
+    searchRes = requests.get(
+        '{0}search?part={1}&maxResults={2}&q={3}&key={4}'.format
+        (
+            endPoints("youtube"),
+            part,
+            maxRes,
+            query,
+            ytApiKey
+        ),
+
+        )
+
+    jsonData = searchRes.json()
+
+    try:
+        # grab first result id only
+        videoID = jsonData['items'][0]['id']['videoId']
+
+    except KeyError:
+        # grab second result id only
+        videoID = jsonData['items'][1]['id']['videoId']
+
+    return videoID
+
 
 
 #Temporary workaround, using external site(s)
@@ -18,7 +50,7 @@ def grabProtURL(ytID):
     links = html.findAll('a', href=True)
 
     for link in links:
-        audio = str(link).find('itag=140')
+        audio = str(link).find('itag=36')
 
         if audio != -1:
             l = re.search('{0}(.+?){1}'.format('href="','"'), str(link))
@@ -26,6 +58,8 @@ def grabProtURL(ytID):
             if l:
                 audioLink = l.group(1).replace('amp;','')
             break
+
+    return audioLink
 
 ### wip, need to figure out how to decipher protected video signatures ###
 ### Currently grabs unprotected videos ###
@@ -98,16 +132,10 @@ def grabUrl(ytID):
     #initcwndbps = findString(str(audioUrlUnformatted),'initcwndbps%3D', '%')
 
     try:
-        user_agent = {'User-agent': 'Mozilla/5.0'}
-        checkIfValid = requests.get(audioUrl, headers = user_agent, timeout=1.4)
-
-        print('Protected')
-
-        ##Grab protected link
-        grabProtURL(ytID)
+        # Grab protected link
+        audioUrl = grabProtURL(ytID)
+        return audioUrl
 
     except requests.exceptions.ConnectionError:
-        print('Unprotected')
 
-        ##Return unprotected link
         return audioUrl

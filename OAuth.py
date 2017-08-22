@@ -2,6 +2,7 @@
 
 clientID = "085f4232110a4daab289d7ccf51f73e5"
 clientSecret = "37177d7f59bd4437bf35f0882f662ff2"
+ytApiKey = 'AIzaSyBf6dsrDdG8h7wLwWBb9Dbf22kW9sTe3Q4'
 baseUrl = "https://accounts.spotify.com/authorize"
 tokenUrl = "https://accounts.spotify.com/api/token"
 responseType = "code"

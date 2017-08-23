@@ -13,7 +13,7 @@ import images_qr
 from PyQt5.QtWidgets import (QStackedWidget, QLineEdit, QListView, QPushButton, QProgressBar,
                              QListWidget, QSlider, QTextEdit, QMenuBar, QWidget, QListWidgetItem,
                              QStatusBar, QLabel, QApplication, QMainWindow, QRadioButton, QFrame,
-                             QVBoxLayout, QMenu, QHBoxLayout, QSizePolicy, QGridLayout, QLayout)
+                             QVBoxLayout, QMenu, QHBoxLayout, QSizePolicy, QGridLayout, QLayout, QGraphicsOpacityEffect)
 from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize, QPoint, QObject, QUrl, pyqtSignal, QThread)
 from PyQt5.QtMultimedia import (QMediaPlayer, QMediaContent, QMediaPlaylist)
 from PyQt5.QtGui import (QIcon, QPixmap, QFont, QMovie)
@@ -207,7 +207,7 @@ class Ui_MainWindow(object):
                     self.data = urllib.request.urlopen(self.imageurl).read()
                     self.pixmap = QPixmap()
                     self.pixmap.loadFromData(self.data, 'JPG')
-                    self.pixmap_resized = self.pixmap.scaled(140, 140)
+                    self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
                     self.lastUserPic.setPixmap(self.pixmap_resized)
                     self.lastUserPic.setGeometry(QRect(130, 170, 140, 140))
 
@@ -299,6 +299,7 @@ class Ui_MainWindow(object):
         self.artistTitle.setGeometry(QRect(580, 415, 221, 31))
         self.artistTitle.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
         self.artistTitle.setObjectName("artistTitleLabel")
+        self.bgImage = QLabel(self.artistPage)
         self.stackedWidget.addWidget(self.artistPage)
 
         # album page
@@ -363,6 +364,7 @@ class Ui_MainWindow(object):
         self.controlForw.setObjectName("controlForw")
         self.controlForw.setIcon(self.iconForw)
         self.controlForw.setIconSize(QSize(45, 45))
+        self.controlForw.clicked.connect(lambda: self.controlPressed("Forward"))
 
         self.controlBack = QPushButton(self.centralwidget)
         self.iconBack = QIcon()
@@ -372,6 +374,7 @@ class Ui_MainWindow(object):
         self.controlBack.setObjectName("controlBack")
         self.controlBack.setIcon(self.iconBack)
         self.controlBack.setIconSize(QSize(45, 45))
+        self.controlBack.clicked.connect(lambda: self.controlPressed("Back"))
 
         self.controlPause = QPushButton(self.centralwidget)
         self.iconPause = QIcon()
@@ -676,6 +679,13 @@ class Ui_MainWindow(object):
             self.resultDoubleClick(name)
 
         elif name == "Artist Page":
+            self.bgImageResiz = self.pixmap.scaled(self.stackedWidget.size(), Qt.KeepAspectRatioByExpanding)
+            self.bgImage.setPixmap(self.bgImageResiz)
+            self.bgImage.setMargin(15)
+            effect = QGraphicsOpacityEffect(self.bgImage)
+            effect.setOpacity(0.4)
+            self.bgImage.setGraphicsEffect(effect)
+            self.bgImage.show()
             self.stackedWidget.setCurrentIndex(3)
 
         elif name == "Album Page":
@@ -690,13 +700,13 @@ class Ui_MainWindow(object):
 
     def controlPressed(self, ctrlName="", state=0):
 
-        if ctrlName == "Play" or state == 1:
+        if ctrlName == "Play":
 
             self.controlPlay.hide()
             self.controlPause.show()
             self.player.play()
 
-        elif ctrlName == "Pause" or state == 2:
+        elif ctrlName == "Pause":
 
             self.controlPause.hide()
             self.controlPlay.show()
@@ -704,6 +714,14 @@ class Ui_MainWindow(object):
 
         elif ctrlName == "Stop":
             self.player.stop()
+
+        elif ctrlName == "Forward":
+            if not self.playlist.mediaCount() == self.playlist.currentIndex() + 1:
+                self.playlist.setCurrentIndex(self.playlist.currentIndex() + 1)
+
+        else:
+            if self.playlist.currentIndex() > 0:
+                self.playlist.setCurrentIndex(self.playlist.currentIndex() - 1)
 
     def loggedIn(self):
 
@@ -897,10 +915,9 @@ class Ui_MainWindow(object):
             pop = int
 
             self.data = urllib.request.urlopen(imageUrl).read()
-            self.artwork.resize(300, 300)
             self.pixmap = QPixmap()
             self.pixmap.loadFromData(self.data, 'JPG')
-            self.pixmap_resized = self.pixmap.scaled(300, 300)
+            self.pixmap_resized = self.pixmap.scaled(300, 300, Qt.KeepAspectRatio)
             self.artwork.setPixmap(self.pixmap_resized)
             self.artwork.setGeometry(QRect(580, 100, 300, 300))
 
@@ -947,9 +964,6 @@ class Ui_MainWindow(object):
         if self.name == 'No Internet Connection':
             return
 
-        self.controlPlay.hide()
-        self.controlPause.show()
-
         # create thread/worker to get details
         self.thread = QThread()
 
@@ -974,7 +988,7 @@ class Ui_MainWindow(object):
         self.url = url
 
         # setup item for insertion to current playlist
-        self.mediaItem = QListWidgetItem("{0} - {1}".format(currSongName[:16], songArtist[:15]))
+        self.mediaItem = QListWidgetItem("{0} - {1}".format(currSongName[:20], songArtist[:12]))
         self.audioFile = QUrl(self.url)
         self.media = QMediaContent(self.audioFile)
 
@@ -983,15 +997,15 @@ class Ui_MainWindow(object):
 
             # insert into current row
             if self.playlist.currentIndex() >= 0:
-                self.currPlaylistWid.insertItem(self.currPlaylistWid.currentRow(), self.mediaItem)
+                self.currPlaylistWid.insertItem(self.playlist.currentIndex(), self.mediaItem)
                 self.currPlaylistWid.setCurrentItem(self.mediaItem)
-                self.playlist.insertMedia(self.currPlaylistWid.currentRow(), self.media)
-                self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
+                self.playlist.insertMedia(self.playlist.currentIndex(), self.media)
+                self.playlist.setCurrentIndex(self.playlist.currentIndex())
 
             else:
-                self.currPlaylistWid.addItem(self.mediaItem)
+                self.currPlaylistWid.insertItem(0, self.mediaItem)
                 self.currPlaylistWid.setCurrentItem(self.mediaItem)
-                self.playlist.addMedia(self.media)
+                self.playlist.insertMedia(0, self.media)
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
             self.player.setVolume(self.volumeControl.value())
@@ -999,6 +1013,11 @@ class Ui_MainWindow(object):
             # set playing now details
             self.labelSongArtist.setText(songArtist)
             self.labelSongTitle.setText(currSongName)
+
+            # change button
+            if self.controlPlay.isVisible():
+                self.controlPause.show()
+                self.controlPlay.hide()
 
             # play song
             self.player.play()
@@ -1009,14 +1028,19 @@ class Ui_MainWindow(object):
 
             # check if playlist is empty/ if so add as play now
             if self.currPlaylistWid.count() == 0:
-                self.currPlaylistWid.addItem(self.mediaItem)
+                self.currPlaylistWid.insertItem(0, self.mediaItem)
                 self.currPlaylistWid.setCurrentItem(self.mediaItem)
-                self.playlist.addMedia(self.media)
+                self.playlist.insertMedia(0, self.media)
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
                 # set playing now details
                 self.labelSongArtist.setText(songArtist)
                 self.labelSongTitle.setText(currSongName)
+
+                # change button
+                if self.controlPlay.isVisible():
+                    self.controlPause.show()
+                    self.controlPlay.hide()
 
                 # play song
                 self.player.play()
@@ -1024,18 +1048,36 @@ class Ui_MainWindow(object):
 
             else:
                 # insert into playlist
-                self.currPlaylistWid.insertItem(self.currPlaylistWid.currentRow() + 1, self.mediaItem)
-                self.playlist.insertMedia(self.currPlaylistWid.currentRow() + 1, self.media)
+                self.currPlaylistWid.insertItem(self.playlist.currentIndex() + 1, self.mediaItem)
+                self.playlist.insertMedia(self.playlist.currentIndex() + 1, self.media)
                 self.mediaState.setText("Added to playlist")
 
-        self.player.stateChanged.connect(lambda: self.controlPressed("", self.player.state()))
+        self.playlist.currentIndexChanged.connect(self.playerStateChange)
         self.player.durationChanged.connect(self.setDuration)
         self.player.positionChanged.connect(self.posChanged)
         self.player.mediaChanged.connect(self.updateCurrPlaylist)
+        self.player.stateChanged.connect(self.stateChanged)
+
+    def stateChanged(self, val):
+        # change buttons depending on state (play/pause)
+        if val == 0 or val == 2:
+            self.controlPause.hide()
+            self.controlPlay.show()
+
+        else:
+            self.controlPause.show()
+            self.controlPlay.hide()
+
+    def playerStateChange(self):
+
+        if self.playlist.mediaCount() > 1 and self.playlist.currentIndex() > -1:
+            self.song = self.currPlaylistWid.item(self.playlist.currentIndex()).text()
+            self.songArt = self.song.split(' - ')
+            self.labelSongTitle.setText(self.songArt[0])
+            self.labelSongArtist.setText(self.songArt[1])
 
     def updateCurrPlaylist(self):
         self.currPlaylistWid.setCurrentIndex(self.playlist.currentIndex())
-        print(self.currPlaylistWid.setCurrentIndex(self.playlist.currentIndex()))
 
     # set max duration for progress bar
     def setDuration(self, val):

@@ -178,7 +178,7 @@ def getData(id, dataType, userID=""):
 
     elif dataType == "artist":
         artistName = jsonData['name']
-        artistImage = jsonData['images'][1]['url']
+        artistImage = jsonData['images'][0]['url']
         popularity = jsonData['popularity']
         followers = jsonData['followers']['total']
 

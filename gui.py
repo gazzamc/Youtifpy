@@ -269,8 +269,8 @@ class Ui_MainWindow(object):
         self.resultList.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.resultList.setObjectName("resultList")
         self.resultList.itemClicked.connect(self.resultClick)
-        self.resultList.itemDoubleClicked.connect(lambda: self.mediaState.setText("Media Loading..."))
-        self.resultList.itemDoubleClicked.connect(self.resultDoubleClick)
+        #self.resultList.itemDoubleClicked.connect(lambda: self.mediaState.setText("Media Loading..."))
+        self.resultList.itemDoubleClicked.connect(lambda: self.resultDoubleClick("Play Now"))
         self.resultList.setContextMenuPolicy(Qt.CustomContextMenu)
         self.resultList.customContextMenuRequested.connect(self.listItemRightClicked)
 
@@ -882,7 +882,6 @@ class Ui_MainWindow(object):
         self.threadsAlive = len(self.threads)
 
 
-
         # determine which data to grab
         if self.option == 'artist':
 
@@ -994,13 +993,14 @@ class Ui_MainWindow(object):
 
         if playWhen == "Play Now":
             self.mediaState.setText("Loading Media")
+            print(self.playlist.currentIndex())
 
             # insert into current row
             if self.playlist.currentIndex() >= 0:
                 self.currPlaylistWid.insertItem(self.playlist.currentIndex(), self.mediaItem)
                 self.currPlaylistWid.setCurrentItem(self.mediaItem)
                 self.playlist.insertMedia(self.playlist.currentIndex(), self.media)
-                self.playlist.setCurrentIndex(self.playlist.currentIndex())
+                self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
             else:
                 self.currPlaylistWid.insertItem(0, self.mediaItem)

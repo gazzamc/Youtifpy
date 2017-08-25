@@ -12,6 +12,7 @@ import requests
 import subprocess
 import threading
 import wget
+from bs4 import BeautifulSoup
 
 def createThread(funcName, threadName, argsPassed=""):
     thread = threading.Thread(target=funcName, name=threadName, args=(argsPassed))
@@ -69,6 +70,12 @@ def endPoints(endpoint):
     elif endpoint == "user":
         fullUrl = '{0}v1/users/'.format(apiBaseUrl)
 
+    elif endpoint == "artistAlbums":
+        fullUrl = '{0}v1/artists/idhere/albums'.format(apiBaseUrl)
+
+    elif endpoint == "artistRelated":
+        fullUrl = '{0}v1/artists/idhere/related-artists'.format(apiBaseUrl)
+
     elif endpoint == "youtube":
         fullUrl = '{0}youtube/v3/'.format(ytBaseUrl)
 
@@ -117,6 +124,7 @@ def search(type, query, limit=20, offset=0):
     nameResult = []
     idResult = []
     artistResult = []
+    artistIDResult = []
     userIdResult = []
 
     for result in results:
@@ -129,12 +137,29 @@ def search(type, query, limit=20, offset=0):
         if type == 'track':
             for artist in result['artists']:
                 artistResult.append(artist['name'])
+                artistIDResult.append(artist['id'])
 
-    return nameResult, idResult, artistResult, userIdResult
+    return nameResult, idResult, artistResult, artistIDResult, userIdResult
+
+
+def getArtistBio(id):
+
+    url = "https://open.spotify.com/artist/{}/about".format(id)
+    request = requests.get(url)
+    html = BeautifulSoup(request.text, "lxml")
+
+    fullBio = ""
+
+    for para in html.findAll("div", {"class", "bio-primary"}):
+        fullBio += para.text
+
+        for para in html.findAll("div", {"class", "bio-secondary"}):
+            fullBio += para.text
+
+    return fullBio
 
 
 # using this for all data fetching(track, album etc), removing redundant functions
-
 def getData(id, dataType, userID=""):
     token = grabToken('token')
 
@@ -149,6 +174,14 @@ def getData(id, dataType, userID=""):
             '/playlists/',
             id
         ))
+    elif dataType == 'artistAlbums' or dataType == 'artistRelated':
+
+        endPointDataTemp = ('{}?&album_type=album'.format
+            (
+            endPoints(dataType)
+        ))
+
+        endPointData = endPointDataTemp.replace("idhere", id)
 
     else:
 
@@ -173,16 +206,40 @@ def getData(id, dataType, userID=""):
         artistName = jsonData['artists'][0]['name']
         trackImage = jsonData['album']['images'][1]['url']
         popularity = jsonData['popularity']
+        artistID = jsonData['artists'][0]['id']
 
-        return trackName, artistName, trackImage, popularity
+        return trackName, artistName, trackImage, artistID, popularity
 
     elif dataType == "artist":
         artistName = jsonData['name']
         artistImage = jsonData['images'][0]['url']
         popularity = jsonData['popularity']
         followers = jsonData['followers']['total']
+        artistID = jsonData['id']
 
-        return artistName, artistImage, popularity, followers
+        return artistName, artistImage, popularity, artistID, followers
+
+    elif dataType == "artistAlbums":
+        results = jsonData['items']
+
+        albumImages = []
+        albumNames = []
+        albumIds = []
+
+        for result in results:
+            # remove duplicates
+            if result['name'] in albumNames:
+                pass
+
+            else:
+                albumImages.append(result['images'][0]['url'])
+                albumNames.append(result['name'])
+                albumIds.append(result['id'])
+
+        return albumImages, albumNames, albumIds
+
+    elif dataType == "artistRelated":
+        print(jsonData)
 
     elif dataType == "album":
         print(jsonData)

@@ -12,11 +12,11 @@ import logging
 import images_qr
 from PyQt5.QtWidgets import (QStackedWidget, QLineEdit, QListView, QPushButton, QProgressBar,
                              QListWidget, QSlider, QTextEdit, QMenuBar, QWidget, QListWidgetItem,
-                             QStatusBar, QLabel, QApplication, QMainWindow, QRadioButton, QFrame,
+                             QStatusBar, QLabel, QApplication, QMainWindow, QRadioButton, QScrollArea,
                              QVBoxLayout, QMenu, QHBoxLayout, QSizePolicy, QGridLayout, QLayout, QGraphicsOpacityEffect)
-from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize, QPoint, QObject, QUrl, pyqtSignal, QThread)
+from PyQt5.QtCore import (Qt, QRect, QCoreApplication, QMetaObject, QSize, QPoint, QObject, QUrl, pyqtSignal, QThread, QPointF)
 from PyQt5.QtMultimedia import (QMediaPlayer, QMediaContent, QMediaPlaylist)
-from PyQt5.QtGui import (QIcon, QPixmap, QFont, QMovie)
+from PyQt5.QtGui import (QIcon, QPixmap, QFont, QMovie, QPalette,  QLinearGradient, QColor, QBrush, QPainter, QPen)
 from functions import *
 from youtube import *
 
@@ -49,8 +49,8 @@ class LoginWorker(QObject):
         return 'Login'
 
 class GetResultDetails(QObject):
-    result = pyqtSignal(str, str, str, str, int)
-    error = pyqtSignal(str, str, str, str, int)
+    result = pyqtSignal(str, str, str, str, str, int)
+    error = pyqtSignal(str, str, str, str, str, int)
 
     def __init__(self, id, option):
         super(GetResultDetails, self).__init__()
@@ -64,13 +64,14 @@ class GetResultDetails(QObject):
             self.image = self.trackInfo[2]
             self.title = self.trackInfo[0]
             self.artist = self.trackInfo[1]
-            self.pop = self.trackInfo[3]
+            self.artistID = self.trackInfo[3]
+            self.pop = self.trackInfo[4]
 
-            self.result.emit(self.option, self.image, self.artist, self.title, self.pop)
+            self.result.emit(self.option, self.image, self.artist, self.title, self.artistID, self.pop)
 
         except Exception as err:
 
-            self.error.emit("Not Found", "Not Found", "Not Found", "Not Found", 0)
+            self.error.emit("Not Found", "Not Found", "Not Found", "Not Found", "Not Found", 0)
             logger.error(err)
 
     def artistDetails(self):
@@ -81,12 +82,13 @@ class GetResultDetails(QObject):
             self.image = self.trackInfo[1]
             self.pop = self.trackInfo[2]
             self.followers = self.trackInfo[3]
+            self.artistID = self.trackInfo[3]
 
-            self.result.emit(self.option, self.name, self.image, str(self.pop), self.followers)
+            self.result.emit(self.option, self.name, self.image, str(self.pop), self.artistID, self.followers)
 
         except Exception as err:
 
-            self.error.emit(self.option, "Not Found", "Not Found", "0", 0)
+            self.error.emit(self.option, "Not Found", "Not Found", "Not Found", "0", 0)
             logger.error(err)
 
 # grab youtube url and return it
@@ -223,7 +225,9 @@ class Ui_MainWindow(object):
 
                 except urllib.error.URLError:
                     logger.error("No user picture available")
-                    self.lastUserPic.setText("No User Image Available")
+                    self.missingPic = QPixmap(':images/ico_256.png')
+                    self.missingPic_resized = self.missingPic.scaled(140, 140, Qt.KeepAspectRatio)
+                    self.lastUserPic.setPixmap(self.missingPic_resized)
                     self.lastUserPic.setGeometry(QRect(130, 170, 140, 140))
 
                 self.name = QLabel("Last Login: {0}".format(prevLogin()[0]), self.loginPage)
@@ -283,6 +287,7 @@ class Ui_MainWindow(object):
         self.resultList.setContextMenuPolicy(Qt.CustomContextMenu)
         self.resultList.customContextMenuRequested.connect(self.listItemRightClicked)
 
+        self.trackArt = ""
 
         self.artwork = QLabel(self.resultPage)
         self.artwork.setObjectName("artwork")
@@ -303,12 +308,49 @@ class Ui_MainWindow(object):
         # artist page
         self.artistPage = QWidget()
         self.artistPage.setObjectName("artistPage")
-        self.artistTitle = QLabel(self.artistPage)
-        self.artistTitle.setText("Artist")
-        self.artistTitle.setGeometry(QRect(580, 415, 221, 31))
-        self.artistTitle.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
-        self.artistTitle.setObjectName("artistTitleLabel")
+
+        # bg image
         self.bgImage = QLabel(self.artistPage)
+
+        self.artistBioText = QLabel(self.artistPage)
+        self.artistBioText.setWordWrap(True)
+        self.artistBioText.setMargin(5)
+        self.artistBioText.setGeometry(500, 60, 400, 200)
+
+        self.artistPopSongs = QLabel(self.artistPage)
+        self.artistPopSongs.setGeometry(140, 200, 70, 30)
+        self.artistPopSongs.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
+        self.artistPopSongs.setText("Popular Songs")
+
+        self.artistAlbums = QPushButton(self.artistPage)
+        self.artistAlbums.setGeometry(140, 330, 55, 30)
+        self.artistAlbums.setFlat(True)
+        self.artistAlbums.setText("Albums")
+        self.artistAlbums.clicked.connect(lambda: print("Albums"))
+
+        self.artistRelated = QPushButton(self.artistPage)
+        self.artistRelated.setGeometry(195, 330, 90, 30)
+        self.artistRelated.setFlat(True)
+        self.artistRelated.setText("Related Artists")
+        self.artistRelated.clicked.connect(lambda: print("Related Artists"))
+
+        self.albumList = QListWidget(self.artistPage)
+        self.albumList.setGeometry(QRect(140, 360, 700, 150))
+        self.albumList.setFlow(QListWidget.LeftToRight)
+        self.albumList.setIconSize(QSize(140, 140))
+        self.albumList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.albumList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.albumList.setStyleSheet("color: black")
+
+        self.artistTitle = QLabel(self.artistPage)
+        self.artistTitle.setGeometry(70, 50, 400, 50)
+        self.artistTitle.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
+        font = QFont()
+        font.setPointSize(25)
+        font.setBold(True)
+        font.setWeight(75)
+        self.artistTitle.setFont(font)
+        self.artistTitle.setObjectName("artistTitleLabel")
         self.stackedWidget.addWidget(self.artistPage)
 
         # album page
@@ -438,19 +480,19 @@ class Ui_MainWindow(object):
 
         # Current song playing info
         self.currSongArt = QLabel(self.centralwidget)
-        self.currSongArt.setGeometry(QRect(40, 590, 100, 70))
+        self.currSongArt.setGeometry(QRect(860, 600, 80, 80))
         self.currSongArt.setObjectName("currSongArt")
 
         self.labelSongArtist = QLabel(self.centralwidget)
-        self.labelSongArtist.setGeometry(QRect(980, 610, 160, 21))
+        self.labelSongArtist.setGeometry(QRect(980, 630, 160, 21))
         self.labelSongArtist.setObjectName("labelSongArtist")
 
         self.labelSongTitle = QLabel(self.centralwidget)
-        self.labelSongTitle.setGeometry(QRect(980, 630, 160, 21))
+        self.labelSongTitle.setGeometry(QRect(980, 650, 160, 21))
         self.labelSongTitle.setObjectName("labelSongTitle")
 
         self.labelNowPlaying = QLabel(self.centralwidget)
-        self.labelNowPlaying.setGeometry(QRect(980, 590, 121, 21))
+        self.labelNowPlaying.setGeometry(QRect(980, 610, 121, 21))
         font = QFont()
         font.setBold(True)
         font.setWeight(75)
@@ -603,6 +645,9 @@ class Ui_MainWindow(object):
         self.currPlaylistWid.setObjectName("listPlaylists")
         self.currPlaylistWid.clicked.connect(self.playFromCurrPlaylist)
 
+        # using this list to store song images for later use
+        self.currPlaylistImages = []
+
 
         self.horizontalLayoutWidget.raise_()
         self.currSongArt.raise_()
@@ -710,8 +755,8 @@ class Ui_MainWindow(object):
 
     def playFromCurrPlaylist(self):
         # get song index in list
-        self.itemInd = self.currPlaylistWid.currentRow()
-        self.playlist.setCurrentIndex(self.itemInd)
+        self.itemId = self.currPlaylistWid.currentRow()
+        self.playlist.setCurrentIndex(self.itemId)
 
         if not self.player.state == 1:
             self.player.play()
@@ -736,7 +781,7 @@ class Ui_MainWindow(object):
                 break
 
         if self.option == "track":
-            self.menuOps = ["Play Now", "Play Next"]
+            self.menuOps = ["Play Now", "Play Next", "Artist Page"]
 
         elif self.option == "artist":
             self.menuOps = ["Artist Page"]
@@ -753,6 +798,7 @@ class Ui_MainWindow(object):
         if self.option == "track":
             self.menuItems[0].triggered.connect(lambda: self.itemClicked(self.menuItems[0].text()))
             self.menuItems[1].triggered.connect(lambda: self.itemClicked(self.menuItems[1].text()))
+            self.menuItems[2].triggered.connect(lambda: self.itemClicked(self.menuItems[2].text()))
 
         elif self.option == "artist":
             self.menuItems[0].triggered.connect(lambda: self.itemClicked(self.menuItems[0].text()))
@@ -772,20 +818,73 @@ class Ui_MainWindow(object):
     def itemClicked(self, name):
 
         if name == "Play Now":
+            # save image for insertion into list
+            self.trackArtPlay = self.trackArt
             self.resultDoubleClick(name)
 
         elif name == "Play Next":
+            self.trackArtPlay = self.trackArt
             self.resultDoubleClick(name)
 
         elif name == "Artist Page":
-            self.bgImageResiz = self.pixmap.scaled(self.stackedWidget.size(), Qt.KeepAspectRatioByExpanding)
-            self.bgImage.setPixmap(self.bgImageResiz)
-            self.bgImage.setMargin(15)
-            effect = QGraphicsOpacityEffect(self.bgImage)
-            effect.setOpacity(0.4)
-            self.bgImage.setGraphicsEffect(effect)
-            self.bgImage.show()
-            self.stackedWidget.setCurrentIndex(3)
+
+            if not self.resultLabel1.text() == "Artist: Not Found":
+                # get artist info
+                self.artistInfo = getData(self.artistId, "artist")
+
+                self.artistName = self.artistInfo[0]
+                self.artistImage = self.artistInfo[1]
+
+                # set background image
+                self.data = urllib.request.urlopen(self.artistImage).read()
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.bgImageResiz = self.pixmap.scaled(self.stackedWidget.size(), Qt.KeepAspectRatioByExpanding)
+                self.bgImage.setPixmap(self.bgImageResiz)
+                self.bgImage.setMargin(0)
+                effect = QGraphicsOpacityEffect(self.bgImage)
+                effect.setOpacity(0.1)
+                self.bgImage.setGraphicsEffect(effect)
+
+                # set background color
+                p = QPalette()
+                gradient = QLinearGradient(0, 0, 0, self.stackedWidget.height())
+                gradient.setColorAt(0.0, QColor(0, 0, 0))
+                gradient.setColorAt(1.0, Qt.transparent)
+                p.setBrush(QPalette.Window, QBrush(gradient))
+                self.artistPage.setPalette(p)
+                self.artistPage.setAutoFillBackground(True)
+                self.artistPage.setStyleSheet("color: white")
+
+                # artist details
+                self.artistTitle.setText(self.resultLabel1.text()[8:])
+
+                # grab albums
+                self.artistBio = getArtistBio(self.artistId)
+                self.artistBioText.setText("{} ....".format(self.artistBio[:1000]))
+
+                self.albumData = getData(self.artistId, "artistAlbums")
+
+                if self.albumList.count() > 0:
+                    self.albumList.clear()
+
+                for i in range(0, len(self.albumData[0])):
+                    self.data = urllib.request.urlopen(self.albumData[0][i]).read()
+
+                    self.pixmap = QPixmap()
+                    self.pixmap.loadFromData(self.data, 'JPG')
+                    self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+
+                    self.icon = QIcon()
+                    self.icon.addPixmap(self.pixmap_resized)
+
+                    self.item = QListWidgetItem()
+                    self.item.setIcon(self.icon)
+                    self.item.setToolTip(self.albumData[1][i])
+
+                    self.albumList.addItem(self.item)
+
+                self.stackedWidget.setCurrentIndex(3)
 
         elif name == "Album Page":
             self.stackedWidget.setCurrentIndex(4)
@@ -870,7 +969,8 @@ class Ui_MainWindow(object):
             self.userPicSmall.setGeometry(QRect(1120, 10, 45, 45))
 
         except Exception:
-            pass
+            self.missingPic_resized = self.missingPic.scaled(50, 50, Qt.KeepAspectRatio)
+            self.userPicSmall.setPixmap(self.missingPic_resized)
 
         # show mainWindow
         MainWindow.show()
@@ -881,7 +981,7 @@ class Ui_MainWindow(object):
         sender = self.MainWindow.sender()
         if(sender.text() == 'Login'):
 
-            # create seperate thread for login function
+            # create separate thread for login function
             self.thread = QThread()
 
             self.threads.append(self.thread)
@@ -978,7 +1078,6 @@ class Ui_MainWindow(object):
         self.threads.append(self.thread)
         self.threadsAlive = len(self.threads)
 
-
         # determine which data to grab
         if self.option == 'artist':
 
@@ -1001,25 +1100,32 @@ class Ui_MainWindow(object):
         self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
         self.threads[self.threadsAlive - 1].start()
 
-    def showResultDetails(self, option, str2, str3, str4, int):
+    def showResultDetails(self, option, str2, str3, str4, str5, int):
 
         if option == "track":
+            # will use this later for grabbing artist info
+            self.artistId = str5
+            self.trackArt = str2
+            self.trackArtist = str3
+            self.trackName = str4
+            self.trackPop = int
 
-            imageUrl = str2
-            artist = str3
-            song = str4
-            pop = int
+            try:
+                self.data = urllib.request.urlopen(self.trackArt).read()
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(300, 300, Qt.KeepAspectRatio)
+                self.artwork.setPixmap(self.pixmap_resized)
+                self.artwork.setGeometry(QRect(580, 100, 300, 300))
 
-            self.data = urllib.request.urlopen(imageUrl).read()
-            self.pixmap = QPixmap()
-            self.pixmap.loadFromData(self.data, 'JPG')
-            self.pixmap_resized = self.pixmap.scaled(300, 300, Qt.KeepAspectRatio)
-            self.artwork.setPixmap(self.pixmap_resized)
-            self.artwork.setGeometry(QRect(580, 100, 300, 300))
+            except Exception:
+                self.missingPic_resized = self.missingPic.scaled(300, 300, Qt.KeepAspectRatio)
+                self.artwork.setPixmap(self.missingPic_resized)
+                self.artwork.setGeometry(QRect(580, 100, 300, 300))
 
-            self.resultLabel1.setText("Artist: {0}".format(artist))
-            self.resultLabel2.setText("Song: {0}".format(song))
-            self.resultLabel3.setText("Popularity: {0}".format(pop))
+            self.resultLabel1.setText("Artist: {0}".format(self.trackArtist))
+            self.resultLabel2.setText("Song: {0}".format(self.trackName))
+            self.resultLabel3.setText("Popularity: {0}".format(self.trackPop))
 
             self.artwork.show()
             self.resultLabel1.show()
@@ -1033,13 +1139,22 @@ class Ui_MainWindow(object):
             pop = str4
             followers = int
 
-            self.data = urllib.request.urlopen(imageUrl).read()
-            self.artwork.resize(300, 300)
-            self.pixmap = QPixmap()
-            self.pixmap.loadFromData(self.data, 'JPG')
-            self.pixmap_resized = self.pixmap.scaled(300, 300)
-            self.artwork.setPixmap(self.pixmap_resized)
-            self.artwork.setGeometry(QRect(580, 100, 300, 300))
+            # will use this later for grabbing artist info
+            self.artistId = str5
+
+            try:
+                self.data = urllib.request.urlopen(imageUrl).read()
+                self.artwork.resize(300, 300)
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(300, 300)
+                self.artwork.setPixmap(self.pixmap_resized)
+                self.artwork.setGeometry(QRect(580, 100, 300, 300))
+
+            except Exception:
+                self.missingPic_resized = self.missingPic.scaled(300, 300, Qt.KeepAspectRatio)
+                self.artwork.setPixmap(self.missingPic_resized)
+                self.artwork.setGeometry(QRect(580, 100, 300, 300))
 
             self.resultLabel1.setText("Artist: {0}".format(artist))
             self.resultLabel2.setText("Followers: {0}".format(followers))
@@ -1098,17 +1213,31 @@ class Ui_MainWindow(object):
                 self.playlist.insertMedia(self.playlist.currentIndex(), self.media)
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
+                # add image for song to list
+                self.currPlaylistImages.insert(self.playlist.currentIndex(),
+                                               [self.trackArtPlay, songArtist, currSongName])
+
             else:
                 self.currPlaylistWid.insertItem(0, self.mediaItem)
                 self.currPlaylistWid.setCurrentItem(self.mediaItem)
                 self.playlist.insertMedia(0, self.media)
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
+                # add image for song to list
+                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName])
+
             self.player.setVolume(self.volumeControl.value())
 
             # set playing now details
             self.labelSongArtist.setText(songArtist)
             self.labelSongTitle.setText(currSongName)
+
+            # change artwork
+            self.data = urllib.request.urlopen(self.currPlaylistImages[self.playlist.currentIndex()][0]).read()
+            self.currSongPixmap = QPixmap()
+            self.currSongPixmap.loadFromData(self.data, 'JPG')
+            self.currSongPixmap_resized = self.currSongPixmap.scaled(80, 80, Qt.KeepAspectRatio)
+            self.currSongArt.setPixmap(self.currSongPixmap_resized)
 
             # change button
             if self.controlPlay.isVisible():
@@ -1129,9 +1258,19 @@ class Ui_MainWindow(object):
                 self.playlist.insertMedia(0, self.media)
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
+                # add image for song to list
+                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName])
+
                 # set playing now details
                 self.labelSongArtist.setText(songArtist)
                 self.labelSongTitle.setText(currSongName)
+
+                # change artwork
+                self.data = urllib.request.urlopen(self.currPlaylistImages[self.playlist.currentIndex()][0]).read()
+                self.currSongPixmap = QPixmap()
+                self.currSongPixmap.loadFromData(self.data, 'JPG')
+                self.currSongPixmap_resized = self.currSongPixmap.scaled(80, 80, Qt.KeepAspectRatio)
+                self.currSongArt.setPixmap(self.currSongPixmap_resized)
 
                 # change button
                 if self.controlPlay.isVisible():
@@ -1147,6 +1286,10 @@ class Ui_MainWindow(object):
                 self.currPlaylistWid.insertItem(self.playlist.currentIndex() + 1, self.mediaItem)
                 self.playlist.insertMedia(self.playlist.currentIndex() + 1, self.media)
                 self.mediaState.setText("Added to playlist")
+
+                # add image for song to list
+                self.currPlaylistImages.insert(self.playlist.currentIndex() + 1,
+                                               [self.trackArtPlay, songArtist, currSongName])
 
         self.playlist.currentIndexChanged.connect(self.playerStateChange)
         self.player.durationChanged.connect(self.setDuration)
@@ -1167,10 +1310,15 @@ class Ui_MainWindow(object):
     def playerStateChange(self):
 
         if self.playlist.mediaCount() > 1 and self.playlist.currentIndex() > -1:
-            self.song = self.currPlaylistWid.item(self.playlist.currentIndex()).text()
-            self.songArt = self.song.split(' - ')
-            self.labelSongTitle.setText(self.songArt[0])
-            self.labelSongArtist.setText(self.songArt[1])
+            self.labelSongTitle.setText(self.currPlaylistImages[self.playlist.currentIndex()][2])
+            self.labelSongArtist.setText(self.currPlaylistImages[self.playlist.currentIndex()][1])
+
+            # change artwork
+            self.data = urllib.request.urlopen(self.currPlaylistImages[self.playlist.currentIndex()][0]).read()
+            self.currSongPixmap = QPixmap()
+            self.currSongPixmap.loadFromData(self.data, 'JPG')
+            self.currSongPixmap_resized = self.currSongPixmap.scaled(80, 80, Qt.KeepAspectRatio)
+            self.currSongArt.setPixmap(self.currSongPixmap_resized)
 
     def updateCurrPlaylist(self):
         self.currPlaylistWid.setCurrentIndex(self.playlist.currentIndex())

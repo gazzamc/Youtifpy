@@ -12,5 +12,11 @@
     <file>images/ico_32.png</file>
     <file>images/ico_48.png</file>
     <file>images/ico_256.png</file>
+    <file>images/home.png</file>
+    <file>images/search.png</file>
+    <file>images/norepeat.png</file>
+    <file>images/repeatone.png</file>
+    <file>images/repeatall.png</file>
+    <file>images/shuffle.png</file>
   </qresource>
 </RCC>

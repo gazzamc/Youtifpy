@@ -171,6 +171,16 @@ class Ui_MainWindow(object):
         self.stackedWidget.setMinimumSize( QSize(600, 0))
         self.stackedWidget.setObjectName("stackedWidget")
 
+        # home button
+        self.returnHome = QPushButton(self.centralwidget)
+        self.iconHome = QIcon()
+        self.iconHome.addFile(":images/home.png")
+        self.returnHome.setFlat(False)
+        self.returnHome.setGeometry(QRect(590, 30, 40, 23))
+        self.returnHome.setIcon(self.iconHome)
+        self.returnHome.setIconSize(QSize(20, 20))
+        self.returnHome.clicked.connect(lambda: self.stackedWidget.setCurrentIndex(1))
+
         # list for threads
         self.threads = []
 
@@ -269,7 +279,6 @@ class Ui_MainWindow(object):
         self.resultList.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.resultList.setObjectName("resultList")
         self.resultList.itemClicked.connect(self.resultClick)
-        #self.resultList.itemDoubleClicked.connect(lambda: self.mediaState.setText("Media Loading..."))
         self.resultList.itemDoubleClicked.connect(lambda: self.resultDoubleClick("Play Now"))
         self.resultList.setContextMenuPolicy(Qt.CustomContextMenu)
         self.resultList.customContextMenuRequested.connect(self.listItemRightClicked)
@@ -327,13 +336,6 @@ class Ui_MainWindow(object):
         self.settingsPage.setObjectName("settingsPage")
         self.stackedWidget.addWidget(self.settingsPage)
         self.gridLayoutCenter.addWidget(self.stackedWidget, 0, 0, 1, 1)
-
-        # music player
-        self.frameAlbumArt = QFrame(self.centralwidget)
-        self.frameAlbumArt.setGeometry(QRect(40, 590, 100, 70))
-        #self.frameAlbumArt.setFrameShape(QFrame.StyledPanel)
-        #self.frameAlbumArt.setFrameShadow(QFrame.Raised)
-        self.frameAlbumArt.setObjectName("frameAlbumArt")
 
         # player controls
         self.controlPlay = QPushButton(self.centralwidget)
@@ -394,12 +396,59 @@ class Ui_MainWindow(object):
         self.mediaState.setAlignment(Qt.AlignHCenter)
         self.mediaState.setObjectName("mediaState")
 
+        # play mode buttons
+        self.noRepeat = QPushButton(self.centralwidget)
+        self.noRepeat.setGeometry(QRect(320, 640, 30, 30))
+        self.noRepeat.setFlat(True)
+        self.noRepeatIcon = QIcon()
+        self.noRepeatIcon.addFile(":images/norepeat.png")
+        self.noRepeat.setIcon(self.noRepeatIcon)
+        self.noRepeat.setIconSize(QSize(25, 25))
+        self.noRepeat.clicked.connect(self.changeMode)
+
+        self.repeatOne = QPushButton(self.centralwidget)
+        self.repeatOne.setGeometry(QRect(320, 640, 30, 30))
+        self.repeatOne.setFlat(True)
+        self.repeatOneIcon = QIcon()
+        self.repeatOneIcon.addFile(":images/repeatone.png")
+        self.repeatOne.setIcon(self.repeatOneIcon)
+        self.repeatOne.setIconSize(QSize(25, 25))
+        self.repeatOne.clicked.connect(self.changeMode)
+        self.repeatOne.hide()
+
+        self.repeatAll = QPushButton(self.centralwidget)
+        self.repeatAll.setGeometry(QRect(320, 640, 30, 30))
+        self.repeatAll.setFlat(True)
+        self.repeatAllIcon = QIcon()
+        self.repeatAllIcon.addFile(":images/repeatall.png")
+        self.repeatAll.setIcon(self.repeatAllIcon)
+        self.repeatAll.setIconSize(QSize(25, 25))
+        self.repeatAll.clicked.connect(self.changeMode)
+        self.repeatAll.hide()
+
+        self.shuffle = QPushButton(self.centralwidget)
+        self.shuffle.setGeometry(QRect(320, 640, 30, 30))
+        self.shuffle.setFlat(True)
+        self.shuffleIcon = QIcon()
+        self.shuffleIcon.addFile(":images/shuffle.png")
+        self.shuffle.setIcon(self.shuffleIcon)
+        self.shuffle.setIconSize(QSize(25, 25))
+        self.shuffle.clicked.connect(self.changeMode)
+        self.shuffle.hide()
+
+        # Current song playing info
+        self.currSongArt = QLabel(self.centralwidget)
+        self.currSongArt.setGeometry(QRect(40, 590, 100, 70))
+        self.currSongArt.setObjectName("currSongArt")
+
         self.labelSongArtist = QLabel(self.centralwidget)
-        self.labelSongArtist.setGeometry(QRect(980, 610, 81, 21))
+        self.labelSongArtist.setGeometry(QRect(980, 610, 160, 21))
         self.labelSongArtist.setObjectName("labelSongArtist")
+
         self.labelSongTitle = QLabel(self.centralwidget)
-        self.labelSongTitle.setGeometry(QRect(980, 630, 81, 21))
+        self.labelSongTitle.setGeometry(QRect(980, 630, 160, 21))
         self.labelSongTitle.setObjectName("labelSongTitle")
+
         self.labelNowPlaying = QLabel(self.centralwidget)
         self.labelNowPlaying.setGeometry(QRect(980, 590, 121, 21))
         font = QFont()
@@ -426,10 +475,11 @@ class Ui_MainWindow(object):
         self.progressMusic.setProperty("value", 0)
         self.progressMusic.setTextVisible(False)
         self.progressMusic.setObjectName("progressMusic")
+        self.progressMusic.mousePressEvent = self.scrubPos
 
         # volume slider
         self.volumeControl = QSlider(self.centralwidget)
-        self.volumeControl.setGeometry(QRect(170, 650, 150, 16))
+        self.volumeControl.setGeometry(QRect(140, 650, 150, 16))
         self.volumeControl.setObjectName("volumeControl")
         self.volumeControl.setOrientation(Qt.Horizontal)
         self.volumeControl.setMaximum(100)
@@ -452,8 +502,13 @@ class Ui_MainWindow(object):
         self.searchBox.returnPressed.connect(self.getSearchParms)
 
         self.searchBtn = QPushButton(self.centralwidget)
-        self.searchBtn.setGeometry(QRect(550, 30, 75, 23))
+        self.searchBtn.setGeometry(QRect(550, 30, 40, 23))
+        self.searchBtn.setFlat(False)
+        self.searchIcon = QIcon()
+        self.searchIcon.addFile(':images\search.png')
         self.searchBtn.setObjectName("searchBtn")
+        self.searchBtn.setIcon(self.searchIcon)
+        self.searchBtn.setIconSize(QSize(25, 25))
         self.searchBtn.clicked.connect(self.getSearchParms)
 
         # user info
@@ -550,7 +605,7 @@ class Ui_MainWindow(object):
 
 
         self.horizontalLayoutWidget.raise_()
-        self.frameAlbumArt.raise_()
+        self.currSongArt.raise_()
         #self.controlPlay.raise_()
         self.labelSongArtist.raise_()
         self.labelSongTitle.raise_()
@@ -592,7 +647,7 @@ class Ui_MainWindow(object):
             self.searchOp2.hide()
             self.searchOp3.hide()
             self.searchOp4.hide()
-            self.frameAlbumArt.hide()
+            self.currSongArt.hide()
             self.controlPlay.hide()
             self.labelSongArtist.hide()
             self.labelSongTitle.hide()
@@ -602,12 +657,56 @@ class Ui_MainWindow(object):
             self.listViewPlaylists.hide()
             self.labelUserName.hide()
             self.labelSubType.hide()
-            self.frameAlbumArt.hide()
+            self.currSongArt.hide()
             self.artwork.hide()
             self.resultLabel1.hide()
             self.resultLabel2.hide()
             self.resultLabel3.hide()
             self.mediaState.hide()
+
+    def changeMode(self):
+        if self.noRepeat.isVisible():
+            self.noRepeat.hide()
+            self.repeatOne.show()
+            self.playlist.setPlaybackMode(1)
+
+        elif self.repeatOne.isVisible():
+            self.repeatOne.hide()
+            self.repeatAll.show()
+            self.playlist.setPlaybackMode(3)
+
+        elif self.repeatAll.isVisible():
+            self.repeatAll.hide()
+            self.shuffle.show()
+            self.playlist.setPlaybackMode(4)
+
+        else:
+            self.shuffle.hide()
+            self.noRepeat.show()
+            self.playlist.setPlaybackMode(2)
+
+
+    def scrubPos(self, event):
+
+        # get mouse press relative to the progressbar
+        press = event.x()
+
+        # get size of progress bar
+        progBarSize = self.progressMusic.width()
+
+        # get the value of the progress bar relative to the song duration
+        maxValue = self.progressMusic.maximum()
+
+        # check if song finished/not loaded
+        if not maxValue == 0:
+            # get step value
+            stepValue = progBarSize / maxValue
+
+            # get value of press
+            value = press / stepValue
+
+            # set player to position
+            self.player.setPosition(value)
 
     def playFromCurrPlaylist(self):
         # get song index in list
@@ -698,7 +797,7 @@ class Ui_MainWindow(object):
             # check if playlist is empty
             self.playlist.isEmpty()
 
-    def controlPressed(self, ctrlName="", state=0):
+    def controlPressed(self, ctrlName=""):
 
         if ctrlName == "Play":
 
@@ -716,12 +815,10 @@ class Ui_MainWindow(object):
             self.player.stop()
 
         elif ctrlName == "Forward":
-            if not self.playlist.mediaCount() == self.playlist.currentIndex() + 1:
-                self.playlist.setCurrentIndex(self.playlist.currentIndex() + 1)
+            self.playlist.next()
 
         else:
-            if self.playlist.currentIndex() > 0:
-                self.playlist.setCurrentIndex(self.playlist.currentIndex() - 1)
+            self.playlist.previous()
 
     def loggedIn(self):
 
@@ -742,7 +839,7 @@ class Ui_MainWindow(object):
         self.searchOp2.show()
         self.searchOp3.show()
         self.searchOp4.show()
-        self.frameAlbumArt.show()
+        self.currSongArt.show()
         self.controlPlay.show()
         self.labelSongArtist.show()
         self.labelSongTitle.show()
@@ -806,7 +903,7 @@ class Ui_MainWindow(object):
         else:
             self.loggedIn()
 
-    def clearData(self, event):
+    def clearData(self):
         deleteData()
         self.lastUserPic.hide()
         self.name.hide()
@@ -993,7 +1090,6 @@ class Ui_MainWindow(object):
 
         if playWhen == "Play Now":
             self.mediaState.setText("Loading Media")
-            print(self.playlist.currentIndex())
 
             # insert into current row
             if self.playlist.currentIndex() >= 0:
@@ -1113,7 +1209,7 @@ class Ui_MainWindow(object):
         self.labelSongTitle.setText(_translate("MainWindow", "Song Title"))
         self.labelNowPlaying.setText(_translate("MainWindow", "Now Playing:"))
         self.searchBox.setPlaceholderText(_translate("MainWindow", "Search..."))
-        self.searchBtn.setText(_translate("MainWindow", "Search"))
+        self.searchBtn.setText(_translate("MainWindow", ""))
         self.labelUserName.setText(_translate("MainWindow", "UserName"))
         self.labelSubType.setText(_translate("MainWindow", "SubType"))
         self.searchOp1.setText(_translate("MainWindow", "track"))

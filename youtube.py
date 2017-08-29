@@ -133,8 +133,9 @@ def grabUrl(ytID):
 
     try:
         # Grab protected link
-        audioUrl = grabProtURL(ytID)
-        return audioUrl
+        protUrl = grabProtURL(ytID)
+
+        return protUrl
 
     except requests.exceptions.ConnectionError:
 

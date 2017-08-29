@@ -6,6 +6,7 @@
 #
 # WARNING! All changes made in this file will be lost!
 
+import requests
 import urllib
 import os
 import logging
@@ -51,6 +52,7 @@ class LoginWorker(QObject):
 class GetResultDetails(QObject):
     result = pyqtSignal(str, str, str, str, str, int)
     error = pyqtSignal(str, str, str, str, str, int)
+    playlistRetrieved = pyqtSignal()
 
     def __init__(self, id, option):
         super(GetResultDetails, self).__init__()
@@ -82,7 +84,7 @@ class GetResultDetails(QObject):
             self.image = self.trackInfo[1]
             self.pop = self.trackInfo[2]
             self.followers = self.trackInfo[3]
-            self.artistID = self.trackInfo[3]
+            self.artistID = self.trackInfo[4]
 
             self.result.emit(self.option, self.name, self.image, str(self.pop), self.artistID, self.followers)
 
@@ -91,15 +93,75 @@ class GetResultDetails(QObject):
             self.error.emit(self.option, "Not Found", "Not Found", "Not Found", "0", 0)
             logger.error(err)
 
+class PopulateWindow(QObject):
+    result = pyqtSignal(list, list, list, list, list, int)
+    result2 = pyqtSignal(list, list, list, list, list, int)
+    result3 = pyqtSignal(list, list, list, list, str, int)
+    playlistRetrieved = pyqtSignal()
+    done = pyqtSignal()
+
+    def __init__(self):
+        super(PopulateWindow, self).__init__()
+
+    def getFeaturedPlaylist(self):
+
+        try:
+            self.playlistData = getData("", "featPlaylists")
+            self.playlistNames = self.playlistData[0]
+            self.images = self.playlistData[1]
+            self.ids = self.playlistData[2]
+
+            self.result.emit(self.playlistNames, self.images, self.ids, [], [], 0)
+            self.playlistRetrieved.emit()
+        except Exception as err:
+            logger.error(err)
+
+    def getnewReleases(self):
+
+        #try:
+        self.newReleasesData = getData("", "newReleases")
+        self.names = self.newReleasesData[0]
+        self.artistNames = self.newReleasesData[1]
+        self.images = self.newReleasesData[2]
+        self.ids = self.newReleasesData[3]
+        self.type = self.newReleasesData[4]
+
+        self.result2.emit(self.names, self.artistNames, self.images, self.ids, self.type, 1)
+        self.done.emit()
+
+        #except Exception as err:
+            #logger.error(err)
+
+    def getRecomTracks(self):
+
+        try:
+            prevTrackFile = open(os.path.join('data', "prevTrack.txt"))
+            self.trackDetails = prevTrackFile.read().split(',')
+            self.trackId = self.trackDetails[0]
+            self.trackName = self.trackDetails[1]
+
+            self.recomTracksData = getData(self.trackId, "recomByTrack")
+
+            self.names = self.recomTracksData[0]
+            self.artists = self.recomTracksData[2]
+            self.images = self.recomTracksData[1]
+            self.ids = self.recomTracksData[3]
+
+            self.result3.emit(self.artists, self.names, self.images, self.ids, self.trackName, 2)
+
+        except Exception as err:
+            logger.error(err)
+
 # grab youtube url and return it
 class GetVideoDetails(QObject):
-    result = pyqtSignal(str, str, str, str)
+    result = pyqtSignal(str, str, str, str, str)
     error = pyqtSignal(str)
 
-    def __init__(self, vidName, vidID, playWhen):
+    def __init__(self, songName, songID, playWhen):
         super(GetVideoDetails, self).__init__()
-        self.name = vidName
-        self.trackDetails = getData(vidID, "track")
+        self.name = songName
+        self.songID = songID
+        self.trackDetails = getData(songID, "track")
         self.playWhen = playWhen
 
     # Grabbing audio details
@@ -108,7 +170,7 @@ class GetVideoDetails(QObject):
         try:
             self.videoDetails = youtubeSearch(self.name, self.trackDetails[1])
             self.url = grabUrl(self.videoDetails)
-            self.result.emit(self.url, self.name, self.trackDetails[1], self.playWhen)
+            self.result.emit(self.url, self.name, self.trackDetails[1], self.songID, self.playWhen)
 
         except Exception as err:
             self.error.emit("{} not found".format(self.name))
@@ -181,7 +243,7 @@ class Ui_MainWindow(object):
         self.returnHome.setGeometry(QRect(590, 30, 40, 23))
         self.returnHome.setIcon(self.iconHome)
         self.returnHome.setIconSize(QSize(20, 20))
-        self.returnHome.clicked.connect(lambda: self.stackedWidget.setCurrentIndex(1))
+        self.returnHome.clicked.connect(self.updateHomeWindow)
 
         # list for threads
         self.threads = []
@@ -256,13 +318,86 @@ class Ui_MainWindow(object):
         self.logo.setPixmap(self.pixmapLogo_resized)
         self.logo.setGeometry(QRect(50, 0, 300, 200))
 
-
         self.stackedWidget.addWidget(self.loginPage)
 
         # main page
         self.mainPage = QWidget()
         self.mainPage.setObjectName("mainPage")
         self.stackedWidget.addWidget(self.mainPage)
+
+        # set background color
+        p = QPalette()
+        gradient = QLinearGradient(0, 0, -50, 600)
+        gradient.setColorAt(0.0, QColor(0, 0, 0))
+        gradient.setColorAt(1.0, Qt.transparent)
+        p.setBrush(QPalette.Window, QBrush(gradient))
+        self.mainPage.setPalette(p)
+        self.mainPage.setAutoFillBackground(True)
+        self.mainPage.setStyleSheet("color: white")
+
+        # Temp item for QListWidgets while loading data
+        self.loadingItem = QListWidgetItem("Loading Data..")
+
+        #  Featured Playlists
+        self.featPlaylists = QLabel(self.mainPage)
+        self.featPlaylists.setText("Featured Playlist's:")
+        self.featPlaylists.setGeometry(QRect(50, 10, 241, 41))
+        font = QFont()
+        font.setPointSize(15)
+        font.setBold(True)
+        font.setWeight(75)
+        self.featPlaylists.setFont(font)
+
+        self.featPlaylistsWid = QListWidget(self.mainPage)
+        self.featPlaylistsWid.addItem(self.loadingItem)
+        self.featPlaylistsWid.setGeometry(QRect(50, 60, 900, 100))
+        self.featPlaylistsWid.setFlow(QListWidget.LeftToRight)
+        self.featPlaylistsWid.setIconSize(QSize(140, 140))
+        self.featPlaylistsWid.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.featPlaylistsWid.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.featPlaylistsWid.setAutoFillBackground(False)
+        self.featPlaylistsWid.setStyleSheet("background-color: transparent; border: none; color: white;")
+
+        #  Newly released songs
+        self.newReleases = QLabel(self.mainPage)
+        self.newReleases.setText("New Releases:")
+        self.newReleases.setGeometry(QRect(50, 180, 241, 41))
+        font = QFont()
+        font.setPointSize(15)
+        font.setBold(True)
+        font.setWeight(75)
+        self.newReleases.setFont(font)
+
+        self.newReleasesWid = QListWidget(self.mainPage)
+        self.newReleasesWid.addItem(self.loadingItem)
+        self.newReleasesWid.setGeometry(QRect(50, 230, 900, 100))
+        self.newReleasesWid.setFlow(QListWidget.LeftToRight)
+        self.newReleasesWid.setIconSize(QSize(140, 140))
+        self.newReleasesWid.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.newReleasesWid.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.newReleasesWid.setAutoFillBackground(False)
+        self.newReleasesWid.setStyleSheet("background-color: transparent; border: none; color: white;")
+        self.newReleasesWid.clicked.connect(lambda: self.resultDoubleClick("Play Now", sender="newReleases"))
+
+        # list for later use
+        self.newReleasesList = []
+        self.relatedTrackList = []
+
+        #  Related music (previously played)
+        self.relatedMusic = QLabel(self.mainPage)
+        self.relatedMusic.setText("No previous listening data")
+        self.relatedMusic.setGeometry(QRect(50, 350, 241, 70))
+
+        self.relatedMusicWid = QListWidget(self.mainPage)
+        self.relatedMusicWid.addItem(self.loadingItem)
+        self.relatedMusicWid.setGeometry(QRect(50, 400, 900, 100))
+        self.relatedMusicWid.setFlow(QListWidget.LeftToRight)
+        self.relatedMusicWid.setIconSize(QSize(70, 70))
+        self.relatedMusicWid.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.relatedMusicWid.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.relatedMusicWid.setAutoFillBackground(False)
+        self.relatedMusicWid.setStyleSheet("background-color: transparent; border: none; color: white;")
+        self.relatedMusicWid.clicked.connect(lambda: self.resultDoubleClick("Play Now", sender="relMusic"))
 
         # result page
         self.resultPage = QWidget()
@@ -315,12 +450,13 @@ class Ui_MainWindow(object):
         self.artistBioText = QLabel(self.artistPage)
         self.artistBioText.setWordWrap(True)
         self.artistBioText.setMargin(5)
-        self.artistBioText.setGeometry(500, 60, 400, 200)
+        self.artistBioText.setGeometry(400, 130, 400, 200)
 
-        self.artistPopSongs = QLabel(self.artistPage)
-        self.artistPopSongs.setGeometry(140, 200, 70, 30)
-        self.artistPopSongs.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
+        self.artistPopSongs = QPushButton(self.artistPage)
+        self.artistPopSongs.setGeometry(195, 330, 90, 30)
+        self.artistPopSongs.setFlat(True)
         self.artistPopSongs.setText("Popular Songs")
+        self.artistPopSongs.clicked.connect(lambda: print("Songs"))
 
         self.artistAlbums = QPushButton(self.artistPage)
         self.artistAlbums.setGeometry(140, 330, 55, 30)
@@ -329,11 +465,12 @@ class Ui_MainWindow(object):
         self.artistAlbums.clicked.connect(lambda: print("Albums"))
 
         self.artistRelated = QPushButton(self.artistPage)
-        self.artistRelated.setGeometry(195, 330, 90, 30)
+        self.artistRelated.setGeometry(280, 330, 100, 30)
         self.artistRelated.setFlat(True)
         self.artistRelated.setText("Related Artists")
         self.artistRelated.clicked.connect(lambda: print("Related Artists"))
 
+        # list widgets for albums, pop songs and related artists
         self.albumList = QListWidget(self.artistPage)
         self.albumList.setGeometry(QRect(140, 360, 700, 150))
         self.albumList.setFlow(QListWidget.LeftToRight)
@@ -341,9 +478,32 @@ class Ui_MainWindow(object):
         self.albumList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.albumList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.albumList.setStyleSheet("color: black")
+        self.albumList.setAutoFillBackground(False)
+        self.albumList.setStyleSheet("background-color: transparent; border: none;")
+        self.albumList.addItem(self.loadingItem)
+
+        self.songList = QListWidget(self.artistPage)
+        self.songList.setGeometry(QRect(140, 360, 700, 150))
+        self.songList.setFlow(QListWidget.LeftToRight)
+        self.songList.setIconSize(QSize(140, 140))
+        self.songList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.songList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.songList.setStyleSheet("color: black")
+        self.songList.addItem(self.loadingItem)
+        self.songList.hide()
+
+        self.relArtistList = QListWidget(self.artistPage)
+        self.relArtistList.setGeometry(QRect(140, 360, 700, 150))
+        self.relArtistList.setFlow(QListWidget.LeftToRight)
+        self.relArtistList.setIconSize(QSize(140, 140))
+        self.relArtistList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.relArtistList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.relArtistList.setStyleSheet("color: black")
+        self.relArtistList.addItem(self.loadingItem)
+        self.relArtistList.hide()
 
         self.artistTitle = QLabel(self.artistPage)
-        self.artistTitle.setGeometry(70, 50, 400, 50)
+        self.artistTitle.setGeometry(140, 60, 500, 50)
         self.artistTitle.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
         font = QFont()
         font.setPointSize(25)
@@ -618,20 +778,20 @@ class Ui_MainWindow(object):
 
         # Current playlists
         self.currPlaylist = QLabel(self.centralwidget)
-        self.currPlaylist.setGeometry( QRect(990, 370, 191, 21))
+        self.currPlaylist.setGeometry(QRect(990, 370, 191, 21))
         font = QFont()
         font.setPointSize(12)
         font.setBold(True)
         font.setWeight(75)
         self.currPlaylist.setFont(font)
-        self.currPlaylist.setLayoutDirection( Qt.LeftToRight)
+        self.currPlaylist.setLayoutDirection(Qt.LeftToRight)
         self.currPlaylist.setTextFormat(Qt.AutoText)
         self.currPlaylist.setAlignment(Qt.AlignCenter)
         self.currPlaylist.setIndent(0)
         self.currPlaylist.setObjectName("CurrentPlaylist")
 
         self.currPlaylistWid = QListWidget(self.centralwidget)
-        self.currPlaylistWid.setGeometry( QRect(980, 400, 211, 140))
+        self.currPlaylistWid.setGeometry(QRect(980, 400, 211, 140))
         sizePolicy =QSizePolicy(QSizePolicy.Fixed,QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -639,8 +799,8 @@ class Ui_MainWindow(object):
         self.currPlaylistWid.setSizePolicy(sizePolicy)
         self.currPlaylistWid.setAcceptDrops(False)
         self.currPlaylistWid.setAutoFillBackground(False)
-        self.currPlaylistWid.setVerticalScrollBarPolicy( Qt.ScrollBarAlwaysOff)
-        self.currPlaylistWid.setHorizontalScrollBarPolicy( Qt.ScrollBarAsNeeded)
+        self.currPlaylistWid.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.currPlaylistWid.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.currPlaylistWid.setAlternatingRowColors(True)
         self.currPlaylistWid.setObjectName("listPlaylists")
         self.currPlaylistWid.clicked.connect(self.playFromCurrPlaylist)
@@ -708,6 +868,36 @@ class Ui_MainWindow(object):
             self.resultLabel2.hide()
             self.resultLabel3.hide()
             self.mediaState.hide()
+
+    def updateHomeWindow(self):
+
+        # check to see if previous song has changed
+        prevTrackFile = open(os.path.join('data', "prevTrack.txt"))
+        self.trackDetails = prevTrackFile.read().split(',')
+        self.prevTrackName = self.trackDetails[1]
+
+        self.getCurrentName = self.relatedMusic.text().split("\"")
+        self.currentName = self.getCurrentName[1]
+
+        if self.prevTrackName == self.currentName:
+            pass
+
+        else:
+
+            self.thread = QThread()
+
+            self.threads.append(self.thread)
+            self.threadsAlive = len(self.threads)
+
+            self.worker = PopulateWindow()
+            self.worker.moveToThread(self.thread)
+
+            self.threads[self.threadsAlive - 1].started.connect(self.worker.getRecomTracks)
+            self.worker.result3.connect(self.populateHomeWindow)
+            self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
+            self.threads[self.threadsAlive - 1].start()
+
+        self.stackedWidget.setCurrentIndex(1)
 
     def changeMode(self):
         if self.noRepeat.isVisible():
@@ -858,11 +1048,10 @@ class Ui_MainWindow(object):
 
                 # artist details
                 self.artistTitle.setText(self.resultLabel1.text()[8:])
-
-                # grab albums
                 self.artistBio = getArtistBio(self.artistId)
                 self.artistBioText.setText("{} ....".format(self.artistBio[:1000]))
 
+                # grab albums
                 self.albumData = getData(self.artistId, "artistAlbums")
 
                 if self.albumList.count() > 0:
@@ -972,14 +1161,102 @@ class Ui_MainWindow(object):
             self.missingPic_resized = self.missingPic.scaled(50, 50, Qt.KeepAspectRatio)
             self.userPicSmall.setPixmap(self.missingPic_resized)
 
-        # show mainWindow
-        MainWindow.show()
+        # populate home window
+        self.thread = QThread()
+
+        self.threads.append(self.thread)
+        self.threadsAlive = len(self.threads)
+
+        self.worker = PopulateWindow()
+        self.worker.moveToThread(self.thread)
+
+        self.threads[self.threadsAlive - 1].started.connect(self.worker.getFeaturedPlaylist)
+        self.worker.result.connect(self.populateHomeWindow)
+        self.worker.playlistRetrieved.connect(self.worker.getnewReleases)
+        self.worker.result2.connect(self.populateHomeWindow)
+        self.worker.done.connect(self.worker.getRecomTracks)
+        self.worker.result3.connect(self.populateHomeWindow)
+        self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
+        self.threads[self.threadsAlive - 1].start()
+
+
+    def populateHomeWindow(self, val1, val2, val3, val4, val5, val6):
+
+        if val6 == 0:  # we know its featPlaylist's
+            widget = self.featPlaylistsWid
+            names = val1
+            images = val2
+            ids = val3
+
+        elif val6 == 1:
+            if len(self.newReleasesList) > 0:
+                self.newReleasesList.clear()
+
+            widget = self.newReleasesWid
+            names = val1
+            artistName = val2
+            images = val3
+            ids = val4
+            type = val5
+
+        else:
+            if len(self.relatedTrackList) > 0:
+                self.relatedTrackList.clear()
+
+            widget = self.relatedMusicWid
+            names = val1
+            artistName = val2
+            images = val3
+            ids = val4
+            prevTrackName = val5
+
+            self.relatedMusic.setText("Because you listened to \"{}\":".format(prevTrackName))
+
+        widget.clear()
+
+        for i in range(0, len(images)):
+            self.data = requests.get(images[i]).content  # This is a bit of a bottle-neck, need to speed it up later
+
+            self.pixmap = QPixmap()
+            self.pixmap.loadFromData(self.data, 'JPG')
+            self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+
+            self.icon = QIcon()
+            self.icon.addPixmap(self.pixmap_resized)
+
+            self.item = QListWidgetItem()
+            self.item.setIcon(self.icon)
+            if not val6 == 0:
+                self.item.setToolTip("{} - {}".format(names[i], artistName[i]))
+
+            else:
+                self.item.setToolTip(names[i])
+
+            widget.addItem(self.item)
+
+            if val6 == 1:
+
+                self.newReleasesList.append([names[i],
+                                            artistName[i],
+                                            images[i],
+                                            ids[i],
+                                            type[i]])
+            elif val6 == 2:
+
+                self.relatedTrackList.append([names[i],
+                                            artistName[i],
+                                            images[i],
+                                            ids[i]])
+
+                if i == len(images)-1:
+                    MainWindow.show()  # show after last item is appended
 
     def loginFunc(self):
+
         MainWindow.hide()
 
         sender = self.MainWindow.sender()
-        if(sender.text() == 'Login'):
+        if sender.text() == 'Login':
 
             # create separate thread for login function
             self.thread = QThread()
@@ -1003,7 +1280,7 @@ class Ui_MainWindow(object):
         else:
             self.loggedIn()
 
-    def clearData(self):
+    def clearData(self, event):
         deleteData()
         self.lastUserPic.hide()
         self.name.hide()
@@ -1045,7 +1322,8 @@ class Ui_MainWindow(object):
 
             for self.result in self.results[0]:
 
-                self.item = self.result[:45] ## Truncate string if too long
+                self.item = QListWidgetItem(self.result[:45])  # Truncate string if too long
+                self.item.setToolTip(self.results[2][self.results[0].index(self.result)])  # Set hover as artist
                 self.resultList.addItem(self.item)
                 self.stackedWidget.setCurrentIndex(2)
                 MainWindow.setWindowTitle("Youtifpy - Search Results")
@@ -1152,6 +1430,7 @@ class Ui_MainWindow(object):
                 self.artwork.setGeometry(QRect(580, 100, 300, 300))
 
             except Exception:
+                self.missingPic = QPixmap(':images/ico_256.png')
                 self.missingPic_resized = self.missingPic.scaled(300, 300, Qt.KeepAspectRatio)
                 self.artwork.setPixmap(self.missingPic_resized)
                 self.artwork.setGeometry(QRect(580, 100, 300, 300))
@@ -1164,13 +1443,33 @@ class Ui_MainWindow(object):
             self.resultLabel2.show()
             self.resultLabel3.show()
 
-    # play song
-    def resultDoubleClick(self, playWhen):
+    def resultDoubleClick(self, playWhen, sender=""):
 
-        self.name = self.resultList.currentItem().text()
 
-        self.id = self.resultList.currentRow()
-        self.songId = self.results[1][self.id]
+        if sender == "":
+            self.name = self.resultList.currentItem().text()
+
+            self.id = self.resultList.currentRow()
+            self.songId = self.results[1][self.id]
+
+        elif sender == "relMusic":
+
+            self.name = self.relatedTrackList[self.relatedMusicWid.currentRow()][0]
+            self.songId = self.relatedTrackList[self.relatedMusicWid.currentRow()][3]
+            self.trackArtPlay = self.relatedTrackList[self.relatedMusicWid.currentRow()][2]
+
+        elif sender == "newReleases":
+            self.albumId = self.newReleasesList[self.newReleasesWid.currentRow()][3]
+            self.type = self.newReleasesList[self.newReleasesWid.currentRow()][4]
+            self.trackArtPlay = self.newReleasesList[self.newReleasesWid.currentRow()][2]
+
+            if not self.type == "single":
+                print("Album")
+
+            else:
+                self.getTracksData = getData(self.albumId, "albumTracks")
+                self.name = self.getTracksData[0][0]
+                self.songId = self.getTracksData[1][0]
 
         if self.name == 'No Internet Connection':
             return
@@ -1194,7 +1493,7 @@ class Ui_MainWindow(object):
     def errorSong(self, errorMsg):
         self.mediaState.setText(errorMsg)
 
-    def playSong(self, url, currSongName, songArtist, playWhen):
+    def playSong(self, url, currSongName, songArtist, songID, playWhen):
 
         self.url = url
 
@@ -1215,7 +1514,7 @@ class Ui_MainWindow(object):
 
                 # add image for song to list
                 self.currPlaylistImages.insert(self.playlist.currentIndex(),
-                                               [self.trackArtPlay, songArtist, currSongName])
+                                               [self.trackArtPlay, songArtist, currSongName, songID])
 
             else:
                 self.currPlaylistWid.insertItem(0, self.mediaItem)
@@ -1224,7 +1523,7 @@ class Ui_MainWindow(object):
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
                 # add image for song to list
-                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName])
+                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName, songID])
 
             self.player.setVolume(self.volumeControl.value())
 
@@ -1244,6 +1543,10 @@ class Ui_MainWindow(object):
                 self.controlPause.show()
                 self.controlPlay.hide()
 
+            # set track on spotify
+
+
+
             # play song
             self.player.play()
             self.mediaState.setText("Loaded Media")
@@ -1259,7 +1562,7 @@ class Ui_MainWindow(object):
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
                 # add image for song to list
-                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName])
+                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName, songID])
 
                 # set playing now details
                 self.labelSongArtist.setText(songArtist)
@@ -1289,7 +1592,7 @@ class Ui_MainWindow(object):
 
                 # add image for song to list
                 self.currPlaylistImages.insert(self.playlist.currentIndex() + 1,
-                                               [self.trackArtPlay, songArtist, currSongName])
+                                               [self.trackArtPlay, songArtist, currSongName, songID])
 
         self.playlist.currentIndexChanged.connect(self.playerStateChange)
         self.player.durationChanged.connect(self.setDuration)
@@ -1344,8 +1647,16 @@ class Ui_MainWindow(object):
         else:
             self.currSongPos.setText("{0}:{1}".format(int(val / 60000), round(((float(val % 60000))) / 1000)))
 
+        # set current track on spotify/locally for later use
+        # needs to be played for more than 30 seconds
+        # will only check between 30 - 35 seconds to avoid writes at every check after said time.
+        if (self.progressMusic.value() >= 30 * 1000) and (self.progressMusic.value() <= 35 * 1000):
+
+            setCurrentTrack(self.currPlaylistImages[self.playlist.currentIndex()][3],
+                            self.currPlaylistImages[self.playlist.currentIndex()][2])
+
     def retranslateUi(self, MainWindow):
-        _translate =  QCoreApplication.translate
+        _translate = QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.loginBtn.setText(_translate("MainWindow", "Login"))
         self.continueBtn.setText(_translate("MainWindow", "Continue as user"))

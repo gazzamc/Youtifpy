@@ -70,11 +70,35 @@ def endPoints(endpoint):
     elif endpoint == "user":
         fullUrl = '{0}v1/users/'.format(apiBaseUrl)
 
+    elif endpoint == "artistTopTracks":
+        fullUrl = '{0}v1/artists/idhere/top-tracks'.format(apiBaseUrl)
+
     elif endpoint == "artistAlbums":
         fullUrl = '{0}v1/artists/idhere/albums'.format(apiBaseUrl)
 
+    elif endpoint == "albumTracks":
+        fullUrl = '{0}v1/albums/idhere/tracks'.format(apiBaseUrl)
+
     elif endpoint == "artistRelated":
         fullUrl = '{0}v1/artists/idhere/related-artists'.format(apiBaseUrl)
+
+    elif endpoint == "recentTrack":
+        fullUrl = '{0}v1/me/player/recently-played'.format(apiBaseUrl)
+
+    elif endpoint == "currentTrack":
+        fullUrl = '{0}v1/me/player/play'.format(apiBaseUrl)
+
+    elif endpoint == "featPlaylists":
+        fullUrl = '{0}v1/browse/featured-playlists'.format(apiBaseUrl)
+
+    elif endpoint == "newReleases":
+        fullUrl = '{0}v1/browse/new-releases'.format(apiBaseUrl)
+
+    elif endpoint == "recomByTrack":
+        fullUrl = '{0}v1/recommendations?&seed_tracks='.format(apiBaseUrl)
+
+    elif endpoint == "recomByArtist":
+        fullUrl = '{0}v1/recommendations?&seed_artists='.format(apiBaseUrl)
 
     elif endpoint == "youtube":
         fullUrl = '{0}youtube/v3/'.format(ytBaseUrl)
@@ -84,6 +108,28 @@ def endPoints(endpoint):
         print("Unknown Endpoint!")
 
     return fullUrl
+
+
+# this feature on spotify's api is in beta, so may not actually work
+# premium is also required. I'll use a local file to save prev/currentTrack.
+
+def setCurrentTrack(trackID, trackName=""):
+    token = grabToken('token')
+
+    searchRes = requests.get(
+        '{0}&context_uri:"spotify:track:{1}"'.format
+            (
+            endPoints("currentTrack"),
+            trackID
+        ),
+
+        headers={'Authorization': 'Bearer {0}'.format(token)})
+
+    if not searchRes.status_code == 204:  # it didn't work or some error occurred
+
+        prevTrackFile = open(os.path.join('data', "prevTrack.txt"), 'w')
+        prevTrackFile.write("{0},{1}".format(trackID, trackName))
+        prevTrackFile.close()
 
 
 def search(type, query, limit=20, offset=0):
@@ -135,9 +181,8 @@ def search(type, query, limit=20, offset=0):
             userIdResult.append(result['owner']['id'])
 
         if type == 'track':
-            for artist in result['artists']:
-                artistResult.append(artist['name'])
-                artistIDResult.append(artist['id'])
+            artistResult.append(result['artists'][0]['name'])
+            artistIDResult.append(result['artists'][0]['id'])
 
     return nameResult, idResult, artistResult, artistIDResult, userIdResult
 
@@ -174,14 +219,25 @@ def getData(id, dataType, userID=""):
             '/playlists/',
             id
         ))
-    elif dataType == 'artistAlbums' or dataType == 'artistRelated':
+    elif dataType == 'artistAlbums' or dataType == 'artistRelated' or dataType == 'albumTracks':
 
-        endPointDataTemp = ('{}?&album_type=album'.format
+        endPointDataTemp = ('{}'.format
             (
             endPoints(dataType)
         ))
 
         endPointData = endPointDataTemp.replace("idhere", id)
+
+        if dataType == 'artistAlbums':
+            endPointData += "?&album_type=album"
+
+    elif dataType == "featPlaylists" or dataType == "newReleases":
+
+        endPointData = ('{0}?limit={1}'.format
+            (
+            endPoints(dataType),
+            "10"
+        ))
 
     else:
 
@@ -247,6 +303,67 @@ def getData(id, dataType, userID=""):
     elif dataType == "playlist":
         print(jsonData)
 
+    elif dataType == "featPlaylists":
+        results = jsonData['playlists']['items']
+
+        playlistNames = []
+        playlistImages = []
+        playlistIDs = []
+
+        for result in results:
+            playlistNames.append(result['name'])
+            playlistImages.append(result['images'][0]['url'])
+            playlistIDs.append(result['id'])
+
+        return playlistNames, playlistImages, playlistIDs
+
+    elif dataType == "newReleases":
+        results = jsonData['albums']['items']
+
+        newRelNames = []
+        newRelArtistNames = []
+        newRelImages = []
+        newRelIDs = []
+        newRelType = []  # album or single
+
+        for result in results:
+            newRelArtistNames.append(result['artists'][0]['name'])
+            newRelNames.append(result['name'])
+            newRelImages.append(result['images'][0]['url'])
+            newRelIDs.append(result['id'])
+            newRelType.append(result['album_type'])
+
+        return newRelNames, newRelArtistNames, newRelImages, newRelIDs, newRelType
+
+    elif dataType == "recomByTrack":
+        results = jsonData['tracks']
+
+        artistNames = []
+        trackImages = []
+        trackNames = []
+        trackIds = []
+
+        for result in results:
+            artistNames.append(result['artists'][0]['name'])
+            trackImages.append(result['album']['images'][0]['url'])
+            trackNames.append(result['name'])
+            trackIds.append(result['id'])
+
+        return artistNames, trackImages, trackNames, trackIds
+
+    elif dataType == "albumTracks":
+        results = jsonData['items']
+
+        trackNames = []
+        trackIds = []
+        trackArtists = []
+
+        for result in results:
+            trackNames.append(result['name'])
+            trackIds.append(result['id'])
+            trackArtists.append(result['artists'][0]['name'])
+
+        return trackNames, trackIds, trackArtists
 
 def requestToken(redirect, clientID, clientSecret):
     code = grabToken('code')
@@ -344,7 +461,7 @@ def prevLogin():
     subscrip = jsonData['product']
 
     if subscrip == 'open':
-        subscrip = 'Free'
+        subscrip = 'free'
 
     return userName, userPic, subscrip, userID
 

@@ -1241,6 +1241,12 @@ class Ui_MainWindow(object):
                                             images[i],
                                             ids[i],
                                             type[i]])
+
+                # If there's no previous song saved we need to show the main window
+                if not os.path.isfile(os.path.join('data', "prevTrack.txt")) and i == len(images)-1:
+                    MainWindow.show()  # show after last item is appended:
+
+
             elif val6 == 2:
 
                 self.relatedTrackList.append([names[i],

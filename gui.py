@@ -37,6 +37,7 @@ logging.basicConfig(filename=os.path.join('logs', "errorLog.log"), level=logging
                     format='%(asctime)s %(levelname)s %(name)s %(message)s')
 logger=logging.getLogger(__name__)
 
+
 # create worker thread for login / prevent gui from freezing
 class LoginWorker(QObject):
     done = pyqtSignal()
@@ -48,6 +49,7 @@ class LoginWorker(QObject):
     # for identification in loggedIn function
     def text(self):
         return 'Login'
+
 
 class GetResultDetails(QObject):
     result = pyqtSignal(str, str, str, str, str, int)
@@ -93,10 +95,11 @@ class GetResultDetails(QObject):
             self.error.emit(self.option, "Not Found", "Not Found", "Not Found", "0", 0)
             logger.error(err)
 
+
 class PopulateWindow(QObject):
-    result = pyqtSignal(list, list, list, list, list, int)
-    result2 = pyqtSignal(list, list, list, list, list, int)
-    result3 = pyqtSignal(list, list, list, list, str, int)
+    result = pyqtSignal(list, list, list, list, list, list, int)
+    result2 = pyqtSignal(list, list, list, list, list, list, int)
+    result3 = pyqtSignal(list, list, list, list, str, list, int)
     playlistRetrieved = pyqtSignal()
     done = pyqtSignal()
 
@@ -110,27 +113,48 @@ class PopulateWindow(QObject):
             self.playlistNames = self.playlistData[0]
             self.images = self.playlistData[1]
             self.ids = self.playlistData[2]
+            self.loadedImages = []
 
-            self.result.emit(self.playlistNames, self.images, self.ids, [], [], 0)
+            # adding loop for image grabbing to avoid freezing to main thread
+            for i in range(len(self.images)):
+                self.data = requests.get(self.images[i]).content  # This is a bit of a bottle-neck
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+
+                self.loadedImages.append(self.pixmap_resized)
+
+            self.result.emit(self.playlistNames, self.loadedImages, self.ids, [], [], [], 0)
             self.playlistRetrieved.emit()
         except Exception as err:
             logger.error(err)
 
     def getnewReleases(self):
 
-        #try:
-        self.newReleasesData = getData("", "newReleases")
-        self.names = self.newReleasesData[0]
-        self.artistNames = self.newReleasesData[1]
-        self.images = self.newReleasesData[2]
-        self.ids = self.newReleasesData[3]
-        self.type = self.newReleasesData[4]
+        try:
+            self.newReleasesData = getData("", "newReleases")
+            self.names = self.newReleasesData[0]
+            self.artistNames = self.newReleasesData[1]
+            self.artistIds = self.newReleasesData[5]
+            self.images = self.newReleasesData[2]
+            self.ids = self.newReleasesData[3]
+            self.type = self.newReleasesData[4]
+            self.loadedImages = []
 
-        self.result2.emit(self.names, self.artistNames, self.images, self.ids, self.type, 1)
-        self.done.emit()
+            # adding loop for image grabbing to avoid freezing to main thread
+            for i in range(len(self.images)):
+                self.data = requests.get(self.images[i]).content  # This is a bit of a bottle-neck
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
 
-        #except Exception as err:
-            #logger.error(err)
+                self.loadedImages.append(self.pixmap_resized)
+
+            self.result2.emit(self.names, self.artistNames, self.loadedImages, self.ids, self.type, self.artistIds, 1)
+            self.done.emit()
+
+        except Exception as err:
+            logger.error(err)
 
     def getRecomTracks(self):
 
@@ -144,25 +168,39 @@ class PopulateWindow(QObject):
 
             self.names = self.recomTracksData[0]
             self.artists = self.recomTracksData[2]
+            self.artistIds = self.recomTracksData[4]
             self.images = self.recomTracksData[1]
             self.ids = self.recomTracksData[3]
+            self.loadedImages = []
 
-            self.result3.emit(self.artists, self.names, self.images, self.ids, self.trackName, 2)
+            # adding loop for image grabbing to avoid freezing to main thread
+
+            for i in range(len(self.images)):
+                self.data = requests.get(self.images[i]).content  # This is a bit of a bottle-neck
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+
+                self.loadedImages.append(self.pixmap_resized)
+
+            self.result3.emit(self.artists, self.names, self.loadedImages, self.ids, self.trackName, self.artistIds, 2)
 
         except Exception as err:
             logger.error(err)
 
+
 # grab youtube url and return it
 class GetVideoDetails(QObject):
-    result = pyqtSignal(str, str, str, str, str)
+    result = pyqtSignal(str, str, str, str, str, str)
     error = pyqtSignal(str)
 
-    def __init__(self, songName, songID, playWhen):
+    def __init__(self, songName, songID, playWhen, artistId):
         super(GetVideoDetails, self).__init__()
         self.name = songName
         self.songID = songID
         self.trackDetails = getData(songID, "track")
         self.playWhen = playWhen
+        self.artistId = artistId
 
     # Grabbing audio details
     def getDetails(self):
@@ -170,11 +208,12 @@ class GetVideoDetails(QObject):
         try:
             self.videoDetails = youtubeSearch(self.name, self.trackDetails[1])
             self.url = grabUrl(self.videoDetails)
-            self.result.emit(self.url, self.name, self.trackDetails[1], self.songID, self.playWhen)
+            self.result.emit(self.url, self.name, self.trackDetails[1], self.songID, self.playWhen, self.artistId)
 
         except Exception as err:
-            self.error.emit("{} not found".format(self.name))
+            self.error.emit("Something went wrong with {}, Try again.".format(self.name))
             logger.error(err)
+
 
 class LoadingWindow(QWidget):
     def __init__(self):
@@ -196,6 +235,7 @@ class LoadingWindow(QWidget):
 
         if (self.loadingLogo.isValid() == False):
             self.logogif.setText('No image found!')
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -253,6 +293,7 @@ class Ui_MainWindow(object):
         self.playlist = QMediaPlaylist()
         self.player.setPlaylist(self.playlist)
         self.playlist.setPlaybackMode(2)
+        self.grabbingMedia = False
 
         # login page
         self.loginPage = QWidget()
@@ -324,6 +365,18 @@ class Ui_MainWindow(object):
         self.mainPage = QWidget()
         self.mainPage.setObjectName("mainPage")
         self.stackedWidget.addWidget(self.mainPage)
+        self.bgImageMain = QLabel(self.mainPage)
+        self.bgImageMain.move(200, 20)
+
+        # set background image
+        self.pixmap = QPixmap()
+        self.pixmap.load(':images\ico_256', 'PNG')
+        self.bgImageMainResiz = self.pixmap.scaled(self.stackedWidget.size(), Qt.KeepAspectRatioByExpanding)
+        self.bgImageMain.setPixmap(self.bgImageMainResiz)
+        self.bgImageMain.setMargin(0)
+        effect = QGraphicsOpacityEffect(self.bgImageMain)
+        effect.setOpacity(0.1)
+        self.bgImageMain.setGraphicsEffect(effect)
 
         # set background color
         p = QPalette()
@@ -385,8 +438,8 @@ class Ui_MainWindow(object):
 
         #  Related music (previously played)
         self.relatedMusic = QLabel(self.mainPage)
-        self.relatedMusic.setText("No previous listening data")
-        self.relatedMusic.setGeometry(QRect(50, 350, 241, 70))
+        self.relatedMusic.setText("When you listen to music this will be updated")
+        self.relatedMusic.setGeometry(QRect(50, 350, 300, 70))
 
         self.relatedMusicWid = QListWidget(self.mainPage)
         self.relatedMusicWid.addItem(self.loadingItem)
@@ -646,6 +699,8 @@ class Ui_MainWindow(object):
         self.labelSongArtist = QLabel(self.centralwidget)
         self.labelSongArtist.setGeometry(QRect(980, 630, 160, 21))
         self.labelSongArtist.setObjectName("labelSongArtist")
+        self.labelSongArtist.setToolTip("Click to view artist")
+        self.labelSongArtist.mousePressEvent = self.setArtistPageLink
 
         self.labelSongTitle = QLabel(self.centralwidget)
         self.labelSongTitle.setGeometry(QRect(980, 650, 160, 21))
@@ -869,21 +924,43 @@ class Ui_MainWindow(object):
             self.resultLabel3.hide()
             self.mediaState.hide()
 
-    def updateHomeWindow(self):
+    def updateHomeWindow(self, prevTrack):
 
-        # check to see if previous song has changed
-        prevTrackFile = open(os.path.join('data', "prevTrack.txt"))
-        self.trackDetails = prevTrackFile.read().split(',')
-        self.prevTrackName = self.trackDetails[1]
+        # check if the home button was clicked
+        self.sender = MainWindow.sender()
+
+        # allow auto updating from another function
+        try:
+            if self.sender.text() == "":
+
+                try:
+                    # check to see if previous song has changed
+                    prevTrackFile = open(os.path.join('data', "prevTrack.txt"))
+                    self.trackDetails = prevTrackFile.read().split(',')
+                    self.prevTrackName = self.trackDetails[1]
+
+                except FileNotFoundError:
+                    self.prevTrackName = "none"
+
+            self.stackedWidget.setCurrentIndex(1)
+
+        except AttributeError:
+            self.prevTrackName = prevTrack
 
         self.getCurrentName = self.relatedMusic.text().split("\"")
-        self.currentName = self.getCurrentName[1]
 
-        if self.prevTrackName == self.currentName:
-            pass
+        try:
+            self.currentName = self.getCurrentName[1][1:-1]  # remove spaces
 
-        else:
+        except IndexError:
+            self.currentName = "none"
 
+        if not self.prevTrackName == self.currentName:
+            # set update status and clear list
+            self.relatedMusicWid.clear()
+            self.relatedMusic.setText("Updating list with new music, one moment!")
+
+            # grab new data
             self.thread = QThread()
 
             self.threads.append(self.thread)
@@ -897,7 +974,6 @@ class Ui_MainWindow(object):
             self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
             self.threads[self.threadsAlive - 1].start()
 
-        self.stackedWidget.setCurrentIndex(1)
 
     def changeMode(self):
         if self.noRepeat.isVisible():
@@ -919,7 +995,6 @@ class Ui_MainWindow(object):
             self.shuffle.hide()
             self.noRepeat.show()
             self.playlist.setPlaybackMode(2)
-
 
     def scrubPos(self, event):
 
@@ -1179,22 +1254,22 @@ class Ui_MainWindow(object):
         self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
         self.threads[self.threadsAlive - 1].start()
 
+    def populateHomeWindow(self, val1, val2, val3, val4, val5, val6, val7):
 
-    def populateHomeWindow(self, val1, val2, val3, val4, val5, val6):
-
-        if val6 == 0:  # we know its featPlaylist's
+        if val7 == 0:  # we know its featPlaylist's
             widget = self.featPlaylistsWid
             names = val1
             images = val2
             ids = val3
 
-        elif val6 == 1:
+        elif val7 == 1:
             if len(self.newReleasesList) > 0:
                 self.newReleasesList.clear()
 
             widget = self.newReleasesWid
             names = val1
             artistName = val2
+            artistIds = val6
             images = val3
             ids = val4
             type = val5
@@ -1206,27 +1281,22 @@ class Ui_MainWindow(object):
             widget = self.relatedMusicWid
             names = val1
             artistName = val2
+            artistIds = val6
             images = val3
             ids = val4
             prevTrackName = val5
 
-            self.relatedMusic.setText("Because you listened to \"{}\":".format(prevTrackName))
+            self.relatedMusic.setText("Because you listened to \" {0} \"".format(prevTrackName))
 
         widget.clear()
 
         for i in range(0, len(images)):
-            self.data = requests.get(images[i]).content  # This is a bit of a bottle-neck, need to speed it up later
-
-            self.pixmap = QPixmap()
-            self.pixmap.loadFromData(self.data, 'JPG')
-            self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
-
             self.icon = QIcon()
-            self.icon.addPixmap(self.pixmap_resized)
+            self.icon.addPixmap(images[i])
 
             self.item = QListWidgetItem()
             self.item.setIcon(self.icon)
-            if not val6 == 0:
+            if not val7 == 0:
                 self.item.setToolTip("{} - {}".format(names[i], artistName[i]))
 
             else:
@@ -1234,25 +1304,27 @@ class Ui_MainWindow(object):
 
             widget.addItem(self.item)
 
-            if val6 == 1:
+            if val7 == 1:
 
                 self.newReleasesList.append([names[i],
                                             artistName[i],
                                             images[i],
                                             ids[i],
-                                            type[i]])
+                                            type[i],
+                                            artistIds[i]])
 
                 # If there's no previous song saved we need to show the main window
                 if not os.path.isfile(os.path.join('data', "prevTrack.txt")) and i == len(images)-1:
                     MainWindow.show()  # show after last item is appended:
 
 
-            elif val6 == 2:
+            elif val7 == 2:
 
                 self.relatedTrackList.append([names[i],
                                             artistName[i],
                                             images[i],
-                                            ids[i]])
+                                            ids[i],
+                                            artistIds[i]])
 
                 if i == len(images)-1:
                     MainWindow.show()  # show after last item is appended
@@ -1463,11 +1535,13 @@ class Ui_MainWindow(object):
             self.name = self.relatedTrackList[self.relatedMusicWid.currentRow()][0]
             self.songId = self.relatedTrackList[self.relatedMusicWid.currentRow()][3]
             self.trackArtPlay = self.relatedTrackList[self.relatedMusicWid.currentRow()][2]
+            self.artistId = self.relatedTrackList[self.relatedMusicWid.currentRow()][4]
 
         elif sender == "newReleases":
             self.albumId = self.newReleasesList[self.newReleasesWid.currentRow()][3]
             self.type = self.newReleasesList[self.newReleasesWid.currentRow()][4]
             self.trackArtPlay = self.newReleasesList[self.newReleasesWid.currentRow()][2]
+            self.artistId = self.newReleasesList[self.newReleasesWid.currentRow()][5]
 
             if not self.type == "single":
                 print("Album")
@@ -1480,26 +1554,36 @@ class Ui_MainWindow(object):
         if self.name == 'No Internet Connection':
             return
 
-        # create thread/worker to get details
-        self.thread = QThread()
+        # prevent double press on same song
+        if not self.grabbingMedia or playWhen == "Play Next":
 
-        # get size of threads list/ add thread
-        self.threads.append(self.thread)
-        self.threadsAlive = len(self.threads)
+            if not playWhen == "Play Next":
+                self.grabbingMedia = True
 
-        self.worker = GetVideoDetails(self.name, self.songId, playWhen)
-        self.worker.moveToThread(self.threads[self.threadsAlive - 1])
+            # create thread/worker to get details
+            self.thread = QThread()
 
-        self.threads[self.threadsAlive - 1].started.connect(self.worker.getDetails)
-        self.worker.result.connect(self.playSong)
-        self.worker.error.connect(self.errorSong)
-        self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
-        self.threads[self.threadsAlive - 1].start()
+            # get size of threads list/ add thread
+            self.threads.append(self.thread)
+            self.threadsAlive = len(self.threads)
+
+            self.worker = GetVideoDetails(self.name, self.songId, playWhen, self.artistId)
+            self.worker.moveToThread(self.threads[self.threadsAlive - 1])
+
+            self.threads[self.threadsAlive - 1].started.connect(self.worker.getDetails)
+            self.worker.result.connect(self.playSong)
+            self.worker.error.connect(self.errorSong)
+            self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
+            self.threads[self.threadsAlive - 1].start()
+
+        else:
+            self.mediaState.setText("Media already being grabbed")
 
     def errorSong(self, errorMsg):
         self.mediaState.setText(errorMsg)
+        self.grabbingMedia = False  # in case of error allow grabbing again
 
-    def playSong(self, url, currSongName, songArtist, songID, playWhen):
+    def playSong(self, url, currSongName, songArtist, songId, playWhen, artistId):
 
         self.url = url
 
@@ -1509,7 +1593,6 @@ class Ui_MainWindow(object):
         self.media = QMediaContent(self.audioFile)
 
         if playWhen == "Play Now":
-            self.mediaState.setText("Loading Media")
 
             # insert into current row
             if self.playlist.currentIndex() >= 0:
@@ -1520,7 +1603,7 @@ class Ui_MainWindow(object):
 
                 # add image for song to list
                 self.currPlaylistImages.insert(self.playlist.currentIndex(),
-                                               [self.trackArtPlay, songArtist, currSongName, songID])
+                                               [self.trackArtPlay, songArtist, currSongName, songId, artistId])
 
             else:
                 self.currPlaylistWid.insertItem(0, self.mediaItem)
@@ -1529,7 +1612,7 @@ class Ui_MainWindow(object):
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
                 # add image for song to list
-                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName, songID])
+                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName, songId, artistId])
 
             self.player.setVolume(self.volumeControl.value())
 
@@ -1538,10 +1621,8 @@ class Ui_MainWindow(object):
             self.labelSongTitle.setText(currSongName)
 
             # change artwork
-            self.data = urllib.request.urlopen(self.currPlaylistImages[self.playlist.currentIndex()][0]).read()
-            self.currSongPixmap = QPixmap()
-            self.currSongPixmap.loadFromData(self.data, 'JPG')
-            self.currSongPixmap_resized = self.currSongPixmap.scaled(80, 80, Qt.KeepAspectRatio)
+            self.changeArtwork(self.currPlaylistImages[self.playlist.currentIndex()][0])
+
             self.currSongArt.setPixmap(self.currSongPixmap_resized)
 
             # change button
@@ -1549,13 +1630,11 @@ class Ui_MainWindow(object):
                 self.controlPause.show()
                 self.controlPlay.hide()
 
-            # set track on spotify
-
-
-
             # play song
             self.player.play()
-            self.mediaState.setText("Loaded Media")
+
+            # allow another song to be grabbed via Play Now
+            self.grabbingMedia = False
 
         else:
             self.mediaState.setText("Adding Media to playlist")
@@ -1568,17 +1647,15 @@ class Ui_MainWindow(object):
                 self.playlist.setCurrentIndex(self.currPlaylistWid.currentRow())
 
                 # add image for song to list
-                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName, songID])
+                self.currPlaylistImages.append([self.trackArtPlay, songArtist, currSongName, songId, artistId])
 
                 # set playing now details
                 self.labelSongArtist.setText(songArtist)
                 self.labelSongTitle.setText(currSongName)
 
                 # change artwork
-                self.data = urllib.request.urlopen(self.currPlaylistImages[self.playlist.currentIndex()][0]).read()
-                self.currSongPixmap = QPixmap()
-                self.currSongPixmap.loadFromData(self.data, 'JPG')
-                self.currSongPixmap_resized = self.currSongPixmap.scaled(80, 80, Qt.KeepAspectRatio)
+                self.changeArtwork(self.currPlaylistImages[self.playlist.currentIndex()][0])
+
                 self.currSongArt.setPixmap(self.currSongPixmap_resized)
 
                 # change button
@@ -1588,7 +1665,9 @@ class Ui_MainWindow(object):
 
                 # play song
                 self.player.play()
-                self.mediaState.setText("Loaded Media")
+
+                # allow another song to be grabbed via Play Now
+                self.grabbingMedia = False
 
             else:
                 # insert into playlist
@@ -1598,20 +1677,49 @@ class Ui_MainWindow(object):
 
                 # add image for song to list
                 self.currPlaylistImages.insert(self.playlist.currentIndex() + 1,
-                                               [self.trackArtPlay, songArtist, currSongName, songID])
+                                               [self.trackArtPlay, songArtist, currSongName, songId, artistId])
 
         self.playlist.currentIndexChanged.connect(self.playerStateChange)
         self.player.durationChanged.connect(self.setDuration)
         self.player.positionChanged.connect(self.posChanged)
         self.player.mediaChanged.connect(self.updateCurrPlaylist)
         self.player.stateChanged.connect(self.stateChanged)
+        self.player.mediaStatusChanged.connect(self.mediaStatus)
+
+    def mediaStatus(self, state):
+        if state == 6:
+            self.mediaState.setText("Media Buffered")
+
+        elif state == 1:
+            self.mediaState.setText("No Media")
+
+        elif state == 4:
+            self.mediaState.setText("Stalled Media")
+
+        elif state == 2:
+            self.mediaState.setText("Loading Media")
+
+        elif state == 5:
+            self.mediaState.setText("Buffering Media")
+
+    def changeArtwork(self, image):
+
+        # check if the image is a QPixmap or url
+        if type(image) == str:
+            self.data = urllib.request.urlopen(image).read()
+            self.currSongPixmap = QPixmap()
+            self.currSongPixmap.loadFromData(self.data, 'JPG')
+            self.currSongPixmap_resized = self.currSongPixmap.scaled(80, 80, Qt.KeepAspectRatio)
+            self.currSongArt.setPixmap(self.currSongPixmap_resized)
+        else:
+            self.currSongPixmap_resized = image.scaled(80, 80, Qt.KeepAspectRatio)
+            self.currSongArt.setPixmap(self.currSongPixmap_resized)
 
     def stateChanged(self, val):
         # change buttons depending on state (play/pause)
         if val == 0 or val == 2:
             self.controlPause.hide()
             self.controlPlay.show()
-
         else:
             self.controlPause.show()
             self.controlPlay.hide()
@@ -1623,11 +1731,14 @@ class Ui_MainWindow(object):
             self.labelSongArtist.setText(self.currPlaylistImages[self.playlist.currentIndex()][1])
 
             # change artwork
-            self.data = urllib.request.urlopen(self.currPlaylistImages[self.playlist.currentIndex()][0]).read()
-            self.currSongPixmap = QPixmap()
-            self.currSongPixmap.loadFromData(self.data, 'JPG')
-            self.currSongPixmap_resized = self.currSongPixmap.scaled(80, 80, Qt.KeepAspectRatio)
-            self.currSongArt.setPixmap(self.currSongPixmap_resized)
+            self.changeArtwork(self.currPlaylistImages[self.playlist.currentIndex()][0])
+
+    # wip
+    def setArtistPageLink(self, event):
+
+        if not self.labelSongArtist.text() == "Artist":
+            self.artistId = self.currPlaylistImages[self.playlist.currentIndex()][3]
+            self.itemClicked("Artist Page")
 
     def updateCurrPlaylist(self):
         self.currPlaylistWid.setCurrentIndex(self.playlist.currentIndex())
@@ -1658,8 +1769,23 @@ class Ui_MainWindow(object):
         # will only check between 30 - 35 seconds to avoid writes at every check after said time.
         if (self.progressMusic.value() >= 30 * 1000) and (self.progressMusic.value() <= 35 * 1000):
 
+            # update related list
+
+            try:
+                # check to see if previous song has changed
+                prevTrackFile = open(os.path.join('data', "prevTrack.txt"))
+                self.trackDetails = prevTrackFile.read().split(',')
+                self.prevTrackName = self.trackDetails[1]
+
+            except FileNotFoundError:
+                self.prevTrackName = "none"
+
+            # update the previous song
             setCurrentTrack(self.currPlaylistImages[self.playlist.currentIndex()][3],
                             self.currPlaylistImages[self.playlist.currentIndex()][2])
+
+            if not self.prevTrackName == self.currPlaylistImages[self.playlist.currentIndex()][2]:
+                self.updateHomeWindow(self.currPlaylistImages[self.playlist.currentIndex()][2])
 
     def retranslateUi(self, MainWindow):
         _translate = QCoreApplication.translate

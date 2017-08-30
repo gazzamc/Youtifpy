@@ -322,34 +322,38 @@ def getData(id, dataType, userID=""):
 
         newRelNames = []
         newRelArtistNames = []
+        newRelArtistIds = []
         newRelImages = []
         newRelIDs = []
         newRelType = []  # album or single
 
         for result in results:
             newRelArtistNames.append(result['artists'][0]['name'])
+            newRelArtistIds.append(result['artists'][0]['id'])
             newRelNames.append(result['name'])
             newRelImages.append(result['images'][0]['url'])
             newRelIDs.append(result['id'])
             newRelType.append(result['album_type'])
 
-        return newRelNames, newRelArtistNames, newRelImages, newRelIDs, newRelType
+        return newRelNames, newRelArtistNames, newRelImages, newRelIDs, newRelType, newRelArtistIds
 
     elif dataType == "recomByTrack":
         results = jsonData['tracks']
 
         artistNames = []
+        artistIds = []
         trackImages = []
         trackNames = []
         trackIds = []
 
         for result in results:
             artistNames.append(result['artists'][0]['name'])
+            artistIds.append(result['artists'][0]['id'])
             trackImages.append(result['album']['images'][0]['url'])
             trackNames.append(result['name'])
             trackIds.append(result['id'])
 
-        return artistNames, trackImages, trackNames, trackIds
+        return artistNames, trackImages, trackNames, trackIds, artistIds
 
     elif dataType == "albumTracks":
         results = jsonData['items']

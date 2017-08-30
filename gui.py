@@ -56,10 +56,11 @@ class GetResultDetails(QObject):
     error = pyqtSignal(str, str, str, str, str, int)
     playlistRetrieved = pyqtSignal()
 
-    def __init__(self, id, option):
+    def __init__(self, id, option, userId=""):
         super(GetResultDetails, self).__init__()
         self.option = option
         self.id = id
+        self.userId = userId
 
     def trackDetails(self):
 
@@ -85,10 +86,43 @@ class GetResultDetails(QObject):
             self.name = self.trackInfo[0]
             self.image = self.trackInfo[1]
             self.pop = self.trackInfo[2]
-            self.followers = self.trackInfo[3]
-            self.artistID = self.trackInfo[4]
+            self.followers = self.trackInfo[4]
+            self.artistID = self.trackInfo[3]
 
             self.result.emit(self.option, self.name, self.image, str(self.pop), self.artistID, self.followers)
+
+        except Exception as err:
+
+            self.error.emit(self.option, "Not Found", "Not Found", "Not Found", "0", 0)
+            logger.error(err)
+
+    def albumDetails(self):
+
+        try:
+            self.albumInfo = getData(self.id, self.option)
+            self.name = self.albumInfo[0]
+            self.image = self.albumInfo[3]
+            self.artist = self.albumInfo[1]
+            self.artistId = self.albumInfo[2]
+            self.tracks = self.albumInfo[4]
+
+            self.result.emit(self.option, self.name, self.image, self.artist, self.artistId,  self.tracks)
+
+        except Exception as err:
+
+            self.error.emit(self.option, "Not Found", "Not Found", "Not Found", "0", 0)
+            logger.error(err)
+
+    def playlistDetails(self):
+
+        try:
+            self.albumInfo = getData(self.id, self.option, self.userId)
+            self.name = self.albumInfo[0]
+            self.image = self.albumInfo[2]
+            self.user = self.albumInfo[1]
+            self.tracks = self.albumInfo[3]
+
+            self.result.emit(self.option, self.name, self.image, self.user, "", self.tracks)
 
         except Exception as err:
 
@@ -100,11 +134,16 @@ class PopulateWindow(QObject):
     result = pyqtSignal(list, list, list, list, list, list, int)
     result2 = pyqtSignal(list, list, list, list, list, list, int)
     result3 = pyqtSignal(list, list, list, list, str, list, int)
+    artistAlbumResults = pyqtSignal(str, str, list, list, list)
+    artistSongResults = pyqtSignal(str, str, list, list, list)
+    artistRelResults = pyqtSignal(str, str, list, list, list)
     playlistRetrieved = pyqtSignal()
     done = pyqtSignal()
+    done2 = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, id=""):
         super(PopulateWindow, self).__init__()
+        self.id = id
 
     def getFeaturedPlaylist(self):
 
@@ -184,6 +223,80 @@ class PopulateWindow(QObject):
                 self.loadedImages.append(self.pixmap_resized)
 
             self.result3.emit(self.artists, self.names, self.loadedImages, self.ids, self.trackName, self.artistIds, 2)
+
+        except Exception as err:
+            logger.error(err)
+
+    def getArtistAlbums(self):
+
+        try:
+            self.artistAlbumsData = getData(self.id, "artistAlbums")
+
+            self.names = self.artistAlbumsData[1]
+            self.images = self.artistAlbumsData[0]
+            self.ids = self.artistAlbumsData[2]
+            self.loadedImages = []
+
+            # adding loop for image grabbing to avoid freezing to main thread
+            for i in range(len(self.images)):
+                self.data = requests.get(self.images[i]).content  # This is a bit of a bottle-neck
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+
+                self.loadedImages.append(self.pixmap_resized)
+
+            self.artistAlbumResults.emit("artist", "albums", self.loadedImages, self.names, self.ids)
+            self.done.emit()
+
+        except Exception as err:
+            logger.error(err)
+
+    def getArtistSongs(self):
+
+        try:
+            self.artistTrackData = getData(self.id, "artistTopTracks")
+
+            self.names = self.artistTrackData[0]
+            self.images = self.artistTrackData[1]
+            self.ids = self.artistTrackData[2]
+            self.loadedImages = []
+
+            # adding loop for image grabbing to avoid freezing to main thread
+            for i in range(len(self.images)):
+                self.data = requests.get(self.images[i]).content  # This is a bit of a bottle-neck
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+
+                self.loadedImages.append(self.pixmap_resized)
+
+            self.artistSongResults.emit("artist", "songs", self.loadedImages, self.names, self.ids)
+            self.done2.emit()
+
+        except Exception as err:
+            logger.error(err)
+
+    def getArtistRel(self):
+
+        try:
+            self.artistAlbumsData = getData(self.id, "artistRelated")
+
+            self.names = self.artistAlbumsData[0]
+            self.images = self.artistAlbumsData[1]
+            self.ids = self.artistAlbumsData[2]
+            self.loadedImages = []
+
+            # adding loop for image grabbing to avoid freezing to main thread
+            for i in range(len(self.images)):
+                self.data = requests.get(self.images[i]).content  # This is a bit of a bottle-neck
+                self.pixmap = QPixmap()
+                self.pixmap.loadFromData(self.data, 'JPG')
+                self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+
+                self.loadedImages.append(self.pixmap_resized)
+
+            self.artistRelResults.emit("artist", "related artists", self.loadedImages, self.names, self.ids)
 
         except Exception as err:
             logger.error(err)
@@ -432,9 +545,12 @@ class Ui_MainWindow(object):
         self.newReleasesWid.setStyleSheet("background-color: transparent; border: none; color: white;")
         self.newReleasesWid.clicked.connect(lambda: self.resultDoubleClick("Play Now", sender="newReleases"))
 
-        # list for later use
+        # list for later use / holds ids for retrieving data
         self.newReleasesList = []
         self.relatedTrackList = []
+        self.artistAlbumsList = []
+        self.artistSongsList = []
+        self.artistRelatedList = []
 
         #  Related music (previously played)
         self.relatedMusic = QLabel(self.mainPage)
@@ -450,7 +566,7 @@ class Ui_MainWindow(object):
         self.relatedMusicWid.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.relatedMusicWid.setAutoFillBackground(False)
         self.relatedMusicWid.setStyleSheet("background-color: transparent; border: none; color: white;")
-        self.relatedMusicWid.clicked.connect(lambda: self.resultDoubleClick("Play Now", sender="relMusic"))
+        self.relatedMusicWid.clicked.connect(lambda: self.resultDoubleClick("Play Now", "relMusic"))
 
         # result page
         self.resultPage = QWidget()
@@ -509,19 +625,20 @@ class Ui_MainWindow(object):
         self.artistPopSongs.setGeometry(195, 330, 90, 30)
         self.artistPopSongs.setFlat(True)
         self.artistPopSongs.setText("Popular Songs")
-        self.artistPopSongs.clicked.connect(lambda: print("Songs"))
+        self.artistPopSongs.clicked.connect(self.changeArtistPage)
+
 
         self.artistAlbums = QPushButton(self.artistPage)
         self.artistAlbums.setGeometry(140, 330, 55, 30)
         self.artistAlbums.setFlat(True)
         self.artistAlbums.setText("Albums")
-        self.artistAlbums.clicked.connect(lambda: print("Albums"))
+        self.artistAlbums.clicked.connect(self.changeArtistPage)
 
         self.artistRelated = QPushButton(self.artistPage)
         self.artistRelated.setGeometry(280, 330, 100, 30)
         self.artistRelated.setFlat(True)
         self.artistRelated.setText("Related Artists")
-        self.artistRelated.clicked.connect(lambda: print("Related Artists"))
+        self.artistRelated.clicked.connect(self.changeArtistPage)
 
         # list widgets for albums, pop songs and related artists
         self.albumList = QListWidget(self.artistPage)
@@ -542,7 +659,10 @@ class Ui_MainWindow(object):
         self.songList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.songList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.songList.setStyleSheet("color: black")
+        self.songList.setAutoFillBackground(False)
+        self.songList.setStyleSheet("background-color: transparent; border: none;")
         self.songList.addItem(self.loadingItem)
+        self.songList.clicked.connect(lambda: self.resultDoubleClick("Play Now", "songList"))
         self.songList.hide()
 
         self.relArtistList = QListWidget(self.artistPage)
@@ -552,7 +672,10 @@ class Ui_MainWindow(object):
         self.relArtistList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.relArtistList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.relArtistList.setStyleSheet("color: black")
+        self.relArtistList.setAutoFillBackground(False)
+        self.relArtistList.setStyleSheet("background-color: transparent; border: none;")
         self.relArtistList.addItem(self.loadingItem)
+        self.relArtistList.clicked.connect(lambda: self.setArtistPageLink(sender="relatedArtist"))
         self.relArtistList.hide()
 
         self.artistTitle = QLabel(self.artistPage)
@@ -974,6 +1097,23 @@ class Ui_MainWindow(object):
             self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
             self.threads[self.threadsAlive - 1].start()
 
+    def changeArtistPage(self):
+        self.sender = MainWindow.sender()
+
+        if self.sender.text() == "Albums":
+            self.relArtistList.hide()
+            self.songList.hide()
+            self.albumList.show()
+
+        elif self.sender.text() == "Popular Songs":
+            self.relArtistList.hide()
+            self.albumList.hide()
+            self.songList.show()
+
+        else:
+            self.songList.hide()
+            self.albumList.hide()
+            self.relArtistList.show()
 
     def changeMode(self):
         if self.noRepeat.isVisible():
@@ -1122,31 +1262,44 @@ class Ui_MainWindow(object):
                 self.artistPage.setStyleSheet("color: white")
 
                 # artist details
-                self.artistTitle.setText(self.resultLabel1.text()[8:])
+                self.artistTitle.setText(self.artistName)
                 self.artistBio = getArtistBio(self.artistId)
-                self.artistBioText.setText("{} ....".format(self.artistBio[:1000]))
 
-                # grab albums
-                self.albumData = getData(self.artistId, "artistAlbums")
+                if not self.artistBio == "":
+                    self.artistBioText.setText("{} ....".format(self.artistBio[:1000]))
+                else:
+                    self.artistBioText.setText("No Bio Available")
 
-                if self.albumList.count() > 0:
+                # clear lists and reset view
+                if len(self.albumList) > 0:
                     self.albumList.clear()
+                    self.songList.clear()
+                    self.relArtistList.clear()
+                    self.artistSongsList.clear()
+                    self.artistAlbumsList.clear()
+                    self.artistRelatedList.clear()
 
-                for i in range(0, len(self.albumData[0])):
-                    self.data = urllib.request.urlopen(self.albumData[0][i]).read()
+                    self.songList.hide()
+                    self.relArtistList.hide()
+                    self.albumList.show()
 
-                    self.pixmap = QPixmap()
-                    self.pixmap.loadFromData(self.data, 'JPG')
-                    self.pixmap_resized = self.pixmap.scaled(140, 140, Qt.KeepAspectRatio)
+                self.item = QListWidgetItem()
+                self.item.setText("Loading Albums")
+                self.albumList.addItem(self.item)
 
-                    self.icon = QIcon()
-                    self.icon.addPixmap(self.pixmap_resized)
-
-                    self.item = QListWidgetItem()
-                    self.item.setIcon(self.icon)
-                    self.item.setToolTip(self.albumData[1][i])
-
-                    self.albumList.addItem(self.item)
+                self.thread = QThread()
+                self.threads.append(self.thread)
+                self.threadsAlive = len(self.threads)
+                self.worker = PopulateWindow(self.artistId)
+                self.worker.moveToThread(self.thread)
+                self.threads[self.threadsAlive - 1].started.connect(self.worker.getArtistAlbums)
+                self.worker.artistAlbumResults.connect(self.populatePage)
+                self.worker.done.connect(self.worker.getArtistSongs)
+                self.worker.artistSongResults.connect(self.populatePage)
+                self.worker.done2.connect(self.worker.getArtistRel)
+                self.worker.artistRelResults.connect(self.populatePage)
+                self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
+                self.threads[self.threadsAlive - 1].start()
 
                 self.stackedWidget.setCurrentIndex(3)
 
@@ -1159,6 +1312,83 @@ class Ui_MainWindow(object):
         else:
             # check if playlist is empty
             self.playlist.isEmpty()
+
+    def populatePage(self, page, val1, val2, val3, val4):
+        if page == "artist":
+            if val1 == "albums":
+                if self.albumList.count() > 0:
+                    self.albumList.clear()
+
+                # if no data add item saying so and avoid loop
+                if len(val3) == 0:
+                    self.item = QListWidgetItem()
+                    self.item.setText("No Albums")
+                    self.albumList.addItem(self.item)
+
+                else:
+                    for i in range(0, len(val2)):
+                        self.pixmap_resized = val2[i].scaled(140, 140, Qt.KeepAspectRatio)
+                        self.icon = QIcon()
+                        self.icon.addPixmap(self.pixmap_resized)
+                        self.item = QListWidgetItem()
+                        self.item.setIcon(self.icon)
+                        self.item.setToolTip(val3[i])
+                        self.albumList.addItem(self.item)
+
+                        # store id
+                        self.artistAlbumsList.append([val3[i], val2[i], val4[i]])  # name, image, id
+
+            elif val1 == "songs":
+                if self.songList.count() > 0:
+                    self.songList.clear()
+
+                # if no data add item saying so and avoid loop
+                if len(val3) == 0:
+                    self.item = QListWidgetItem()
+                    self.item.setText("No Albums")
+                    self.songList.addItem(self.item)
+
+                else:
+                    for i in range(0, len(val2)):
+                        self.pixmap_resized = val2[i].scaled(140, 140, Qt.KeepAspectRatio)
+                        self.icon = QIcon()
+                        self.icon.addPixmap(self.pixmap_resized)
+                        self.item = QListWidgetItem()
+                        self.item.setIcon(self.icon)
+                        self.item.setToolTip(val3[i])
+                        self.songList.addItem(self.item)
+
+                        # store id
+                        self.artistSongsList.append([val3[i], val2[i], val4[i], self.artistId])
+
+            else:
+                if self.relArtistList.count() > 0:
+                    self.relArtistList.clear()
+
+                # if no data add item saying so and avoid loop
+                if len(val3) == 0:
+                    self.item = QListWidgetItem()
+                    self.item.setText("No Albums")
+                    self.relArtistList.addItem(self.item)
+
+                else:
+                    for i in range(0, len(val2)):
+                        self.pixmap_resized = val2[i].scaled(140, 140, Qt.KeepAspectRatio)
+                        self.icon = QIcon()
+                        self.icon.addPixmap(self.pixmap_resized)
+                        self.item = QListWidgetItem()
+                        self.item.setIcon(self.icon)
+                        self.item.setToolTip(val3[i])
+                        self.relArtistList.addItem(self.item)
+
+                        # store id
+                        self.artistRelatedList.append([val3[i], val2[i], val4[i]])  # name, image, id
+
+        elif page == "album":
+            self.stackedWidget.setCurrentIndex(4)
+
+        else:
+            self.stackedWidget.setCurrentIndex(5)
 
     def controlPressed(self, ctrlName=""):
 
@@ -1233,6 +1463,8 @@ class Ui_MainWindow(object):
             self.userPicSmall.setGeometry(QRect(1120, 10, 45, 45))
 
         except Exception:
+            logger.error("No user picture available")
+            self.missingPic = QPixmap(':images/ico_256.png')
             self.missingPic_resized = self.missingPic.scaled(50, 50, Qt.KeepAspectRatio)
             self.userPicSmall.setPixmap(self.missingPic_resized)
 
@@ -1401,7 +1633,10 @@ class Ui_MainWindow(object):
             for self.result in self.results[0]:
 
                 self.item = QListWidgetItem(self.result[:45])  # Truncate string if too long
-                self.item.setToolTip(self.results[2][self.results[0].index(self.result)])  # Set hover as artist
+
+                if self.option == "track":
+                    self.item.setToolTip(self.results[2][self.results[0].index(self.result)])  # Set hover as artist
+
                 self.resultList.addItem(self.item)
                 self.stackedWidget.setCurrentIndex(2)
                 MainWindow.setWindowTitle("Youtifpy - Search Results")
@@ -1433,22 +1668,21 @@ class Ui_MainWindow(object):
         # get size of threads list/ add thread
         self.threads.append(self.thread)
         self.threadsAlive = len(self.threads)
+        self.worker = GetResultDetails(self.results[1][self.id], self.option)
 
         # determine which data to grab
         if self.option == 'artist':
-
-            self.worker = GetResultDetails(self.results[1][self.id], self.option)
             self.threads[self.threadsAlive - 1].started.connect(self.worker.artistDetails)
 
         elif self.option == 'track':
-            self.worker = GetResultDetails(self.results[1][self.id], self.option)
             self.threads[self.threadsAlive - 1].started.connect(self.worker.trackDetails)
 
         elif self.option == 'album':
-            self.albumInfo = getData(self.results[1][self.id], self.option)
+            self.threads[self.threadsAlive - 1].started.connect(self.worker.albumDetails)
 
         else:
-            self.playlistInfo = getData(self.results[1][self.id], self.option, self.results[3][self.id])
+            self.worker = GetResultDetails(self.results[1][self.id], self.option, self.results[4][self.id])
+            self.threads[self.threadsAlive - 1].started.connect(self.worker.playlistDetails)
 
         self.worker.moveToThread(self.threads[self.threadsAlive - 1])
         self.worker.result.connect(self.showResultDetails)
@@ -1466,69 +1700,92 @@ class Ui_MainWindow(object):
             self.trackName = str4
             self.trackPop = int
 
-            try:
-                self.data = urllib.request.urlopen(self.trackArt).read()
-                self.pixmap = QPixmap()
-                self.pixmap.loadFromData(self.data, 'JPG')
-                self.pixmap_resized = self.pixmap.scaled(300, 300, Qt.KeepAspectRatio)
-                self.artwork.setPixmap(self.pixmap_resized)
-                self.artwork.setGeometry(QRect(580, 100, 300, 300))
+            # local variables
+            image = self.trackArt
+            data1 = self.trackArtist
+            data2 = self.trackName
+            data3 = self.trackPop
 
-            except Exception:
-                self.missingPic_resized = self.missingPic.scaled(300, 300, Qt.KeepAspectRatio)
-                self.artwork.setPixmap(self.missingPic_resized)
-                self.artwork.setGeometry(QRect(580, 100, 300, 300))
-
-            self.resultLabel1.setText("Artist: {0}".format(self.trackArtist))
-            self.resultLabel2.setText("Song: {0}".format(self.trackName))
-            self.resultLabel3.setText("Popularity: {0}".format(self.trackPop))
-
-            self.artwork.show()
-            self.resultLabel1.show()
-            self.resultLabel2.show()
-            self.resultLabel3.show()
+            label1 = "Artist"
+            label2 = "Song"
+            label3 = "Popularity"
 
         elif option == "artist":
 
-            artist = str2
-            imageUrl = str3
-            pop = str4
-            followers = int
+            # local variables
+            image = str3
+            data1 = str2
+            data2 = int
+            data3 = str4
+
+            label1 = "Artist"
+            label2 = "Followers"
+            label3 = "Popularity"
 
             # will use this later for grabbing artist info
             self.artistId = str5
 
-            try:
-                self.data = urllib.request.urlopen(imageUrl).read()
-                self.artwork.resize(300, 300)
-                self.pixmap = QPixmap()
-                self.pixmap.loadFromData(self.data, 'JPG')
-                self.pixmap_resized = self.pixmap.scaled(300, 300)
-                self.artwork.setPixmap(self.pixmap_resized)
-                self.artwork.setGeometry(QRect(580, 100, 300, 300))
+        elif option == "album":
 
-            except Exception:
-                self.missingPic = QPixmap(':images/ico_256.png')
-                self.missingPic_resized = self.missingPic.scaled(300, 300, Qt.KeepAspectRatio)
-                self.artwork.setPixmap(self.missingPic_resized)
-                self.artwork.setGeometry(QRect(580, 100, 300, 300))
+            # local variables
+            image = str3
+            data1 = str2
+            data2 = str4
+            data3 = int
 
-            self.resultLabel1.setText("Artist: {0}".format(artist))
-            self.resultLabel2.setText("Followers: {0}".format(followers))
-            self.resultLabel3.setText("Popularity: {0}".format(pop))
-            self.artwork.show()
-            self.resultLabel1.show()
-            self.resultLabel2.show()
-            self.resultLabel3.show()
+            label1 = "Name"
+            label2 = "Artist"
+            label3 = "Tracks"
+
+            # will use this later for grabbing artist info
+            self.artistId = str5
+
+        else:
+
+            # local variables
+            image = str3
+            data1 = str2
+            data2 = str4
+            data3 = int
+
+            label1 = "Name"
+            label2 = "Created by"
+            label3 = "Tracks"
+
+        try:
+            self.data = urllib.request.urlopen(image).read()
+            self.pixmap = QPixmap()
+            self.pixmap.loadFromData(self.data, 'JPG')
+            self.pixmap_resized = self.pixmap.scaled(300, 300, Qt.KeepAspectRatio)
+            self.artwork.setPixmap(self.pixmap_resized)
+            self.artwork.setGeometry(QRect(580, 100, 300, 300))
+
+        except Exception as err:
+            logger.error(err)
+            self.missingPic = QPixmap(':images/ico_256.png')
+            self.missingPic_resized = self.missingPic.scaled(300, 300, Qt.KeepAspectRatio)
+            self.artwork.setPixmap(self.missingPic_resized)
+            self.artwork.setGeometry(QRect(580, 100, 300, 300))
+
+        self.resultLabel1.setText("{0}: {1}".format(label1, data1))
+        self.resultLabel2.setText("{0}: {1}".format(label2, data2))
+        self.resultLabel3.setText("{0}: {1}".format(label3, data3))
+
+        self.artwork.show()
+        self.resultLabel1.show()
+        self.resultLabel2.show()
+        self.resultLabel3.show()
 
     def resultDoubleClick(self, playWhen, sender=""):
-
 
         if sender == "":
             self.name = self.resultList.currentItem().text()
 
             self.id = self.resultList.currentRow()
             self.songId = self.results[1][self.id]
+
+            # to bypass if statement below
+            self.type = "single"
 
         elif sender == "relMusic":
 
@@ -1537,6 +1794,9 @@ class Ui_MainWindow(object):
             self.trackArtPlay = self.relatedTrackList[self.relatedMusicWid.currentRow()][2]
             self.artistId = self.relatedTrackList[self.relatedMusicWid.currentRow()][4]
 
+            # to bypass if statement below
+            self.type = "single"
+
         elif sender == "newReleases":
             self.albumId = self.newReleasesList[self.newReleasesWid.currentRow()][3]
             self.type = self.newReleasesList[self.newReleasesWid.currentRow()][4]
@@ -1544,18 +1804,27 @@ class Ui_MainWindow(object):
             self.artistId = self.newReleasesList[self.newReleasesWid.currentRow()][5]
 
             if not self.type == "single":
-                print("Album")
+                self.type = self.newReleasesList[self.newReleasesWid.currentRow()][4]
 
             else:
                 self.getTracksData = getData(self.albumId, "albumTracks")
                 self.name = self.getTracksData[0][0]
                 self.songId = self.getTracksData[1][0]
 
+        elif sender == 'songList':
+            self.name = self.artistSongsList[self.songList.currentRow()][0]
+            self.songId = self.artistSongsList[self.songList.currentRow()][2]
+            self.trackArtPlay = self.artistSongsList[self.songList.currentRow()][1]
+            self.artistId = self.artistSongsList[self.songList.currentRow()][3]
+
+            # to bypass if statement below
+            self.type = "single"
+
         if self.name == 'No Internet Connection':
             return
 
         # prevent double press on same song
-        if not self.grabbingMedia or playWhen == "Play Next":
+        if (not self.grabbingMedia or playWhen == "Play Next") and self.type == "single":
 
             if not playWhen == "Play Next":
                 self.grabbingMedia = True
@@ -1577,7 +1846,8 @@ class Ui_MainWindow(object):
             self.threads[self.threadsAlive - 1].start()
 
         else:
-            self.mediaState.setText("Media already being grabbed")
+            if not self.type == "album":
+                self.mediaState.setText("Media already being grabbed")
 
     def errorSong(self, errorMsg):
         self.mediaState.setText(errorMsg)
@@ -1733,12 +2003,15 @@ class Ui_MainWindow(object):
             # change artwork
             self.changeArtwork(self.currPlaylistImages[self.playlist.currentIndex()][0])
 
-    # wip
-    def setArtistPageLink(self, event):
-
-        if not self.labelSongArtist.text() == "Artist":
-            self.artistId = self.currPlaylistImages[self.playlist.currentIndex()][3]
+    def setArtistPageLink(self, sender=""):
+        if sender == "relatedArtist":
+            self.artistId = self.artistRelatedList[self.relArtistList.currentRow()][2]
             self.itemClicked("Artist Page")
+
+        else:
+            if not self.labelSongArtist.text() == "Artist":
+                self.artistId = self.currPlaylistImages[self.playlist.currentIndex()][4]
+                self.itemClicked("Artist Page")
 
     def updateCurrPlaylist(self):
         self.currPlaylistWid.setCurrentIndex(self.playlist.currentIndex())

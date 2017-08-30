@@ -205,7 +205,7 @@ def getArtistBio(id):
 
 
 # using this for all data fetching(track, album etc), removing redundant functions
-def getData(id, dataType, userID=""):
+def getData(id, dataType, userID="", countryCode="IE"):
     token = grabToken('token')
 
     # playlist url is structured a bit differently
@@ -219,17 +219,21 @@ def getData(id, dataType, userID=""):
             '/playlists/',
             id
         ))
-    elif dataType == 'artistAlbums' or dataType == 'artistRelated' or dataType == 'albumTracks':
+    elif dataType == 'artistAlbums' or dataType == 'artistRelated' \
+            or dataType == 'albumTracks' or dataType == 'artistTopTracks':
 
-        endPointDataTemp = ('{}'.format
-            (
-            endPoints(dataType)
-        ))
+            endPointDataTemp = ('{}'.format
+                (
+                endPoints(dataType)
+            ))
 
-        endPointData = endPointDataTemp.replace("idhere", id)
+            endPointData = endPointDataTemp.replace("idhere", id)
 
-        if dataType == 'artistAlbums':
-            endPointData += "?&album_type=album"
+            if dataType == 'artistAlbums':
+                endPointData += "?&album_type=album"
+
+            elif dataType == 'artistTopTracks':
+                endPointData += "?country={}".format(countryCode)
 
     elif dataType == "featPlaylists" or dataType == "newReleases":
 
@@ -275,9 +279,31 @@ def getData(id, dataType, userID=""):
 
         return artistName, artistImage, popularity, artistID, followers
 
+    elif dataType == "album":
+
+        albumName = jsonData['name']
+        albumTrackTotal = jsonData['tracks']['total']
+        albumArtist = jsonData['artists'][0]['name']
+        artistId = jsonData['artists'][0]['id']
+        albumImage = jsonData['images'][0]['url']
+
+        return albumName, albumArtist, artistId, albumImage, albumTrackTotal
+
+    elif dataType == "playlist":
+        playlistName = jsonData['name']
+        playlistTrackTotal = jsonData['tracks']['total']
+        playlistImage = jsonData['images'][0]['url']
+
+        try:
+            user = jsonData['owner']['display_name']
+
+        except KeyError:
+            user = jsonData['owner']['id']
+
+        return playlistName, user, playlistImage, playlistTrackTotal
+
     elif dataType == "artistAlbums":
         results = jsonData['items']
-
         albumImages = []
         albumNames = []
         albumIds = []
@@ -295,13 +321,32 @@ def getData(id, dataType, userID=""):
         return albumImages, albumNames, albumIds
 
     elif dataType == "artistRelated":
-        print(jsonData)
+        results = jsonData['artists']
 
-    elif dataType == "album":
-        print(jsonData)
+        artistNames = []
+        artistImages = []
+        artistIds = []
 
-    elif dataType == "playlist":
-        print(jsonData)
+        for result in results:
+            artistNames.append(result['name'])
+            artistImages.append(result['images'][0]['url'])
+            artistIds.append(result['id'])
+
+        return artistNames, artistImages, artistIds
+
+    elif dataType == "artistTopTracks":
+        results = jsonData['tracks']
+
+        trackNames = []
+        trackImages = []
+        trackIds = []
+
+        for result in results:
+            trackNames.append(result['name'])
+            trackImages.append(result['album']['images'][0]['url'])
+            trackIds.append(result['id'])
+
+        return trackNames, trackImages, trackIds
 
     elif dataType == "featPlaylists":
         results = jsonData['playlists']['items']

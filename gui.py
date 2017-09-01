@@ -1826,9 +1826,6 @@ class Ui_MainWindow(object):
             # to bypass if statement below
             self.type = "single"
 
-        if self.name == 'No Internet Connection':
-            return
-
         # prevent double press on same song
         if (not self.grabbingMedia or playWhen == "Play Next") and self.type == "single":
 

@@ -15,7 +15,7 @@ def youtubeSearch(query, name, part='id', maxRes=20):
     query = urllib.parse.quote("{0} {1}".format(query, name))
 
     searchRes = requests.get(
-        '{0}search?part={1}&maxResults={2}&q={3}&key={4}'.format
+        '{0}search?part={1}&maxResults={2}&q={3}&type=video&videoCategoryId=10&key={4}'.format
         (
             endPoints("youtube"),
             part,

@@ -523,6 +523,7 @@ class Ui_MainWindow(object):
         self.featPlaylistsWid.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.featPlaylistsWid.setAutoFillBackground(False)
         self.featPlaylistsWid.setStyleSheet("background-color: transparent; border: none; color: white;")
+        self.featPlaylistsWid.clicked.connect(lambda: self.populatePage("playlist", "", "", "", ""))
 
         #  Newly released songs
         self.newReleases = QLabel(self.mainPage)
@@ -770,7 +771,7 @@ class Ui_MainWindow(object):
         self.mediaState = QLabel(self.centralwidget)
         self.mediaState.setText("No Media Loaded")
         self.mediaState.setAlignment(Qt.AlignHCenter| Qt.AlignVCenter)
-        self.mediaState.setGeometry(QRect(445, 668, 300, 16))
+        self.mediaState.setGeometry(QRect(445, 660, 300, 16))
         self.mediaState.setAlignment(Qt.AlignHCenter)
         self.mediaState.setObjectName("mediaState")
 
@@ -1195,7 +1196,7 @@ class Ui_MainWindow(object):
             self.menuOps = ["View Playlist"]
 
         else:
-            self.menuOps = ["View Album", "View Artist"]
+            self.menuOps = ["View Album", "Artist Page"]
 
         for i in range(0, len(self.menuOps)):
             self.menuItems.append(self.listMenu.addAction(self.menuOps[i]))
@@ -1303,11 +1304,13 @@ class Ui_MainWindow(object):
 
                 self.stackedWidget.setCurrentIndex(3)
 
-        elif name == "Album Page":
-            self.stackedWidget.setCurrentIndex(4)
+        elif name == "View Album":
+            # todo
+            self.populatePage("album", "", "", "", "")
 
-        elif name == "Playlist Page":
-            self.stackedWidget.setCurrentIndex(5)
+        elif name == "View Playlist":
+            # todo
+            self.populatePage("playlist", "", "", "", "")
 
         else:
             # check if playlist is empty
@@ -1806,6 +1809,9 @@ class Ui_MainWindow(object):
             if not self.type == "single":
                 self.type = self.newReleasesList[self.newReleasesWid.currentRow()][4]
 
+                # todo
+                self.populatePage("album", "", "", "", "")
+
             else:
                 self.getTracksData = getData(self.albumId, "albumTracks")
                 self.name = self.getTracksData[0][0]
@@ -1845,6 +1851,9 @@ class Ui_MainWindow(object):
             self.threads[self.threadsAlive - 1].finished.connect(self.threads[self.threadsAlive - 1].deleteLater)
             self.threads[self.threadsAlive - 1].start()
 
+            # notify user that song is being grabbed
+            self.mediaState.setText("Grabbing Media, one moment.")
+
         else:
             if not self.type == "album":
                 self.mediaState.setText("Media already being grabbed")
@@ -1861,6 +1870,10 @@ class Ui_MainWindow(object):
         self.mediaItem = QListWidgetItem("{0} - {1}".format(currSongName[:20], songArtist[:12]))
         self.audioFile = QUrl(self.url)
         self.media = QMediaContent(self.audioFile)
+
+        # fixes issue with song data being wrong after playlist finishes and another song is added
+        if self.playlist.currentIndex() == -1:
+            self.playlist.setCurrentIndex(0)
 
         if playWhen == "Play Now":
 
@@ -2033,6 +2046,9 @@ class Ui_MainWindow(object):
 
         if round(((float(val % 60000))) / 1000) < 10:
             self.currSongPos.setText("{0}:0{1}".format(int(val / 60000), round(((float(val % 60000))) / 1000)))
+
+        elif round(((float(val % 60000))) / 1000) == 60:
+            self.currSongPos.setText("{0}:00".format(int(val / 60000)))
 
         else:
             self.currSongPos.setText("{0}:{1}".format(int(val / 60000), round(((float(val % 60000))) / 1000)))

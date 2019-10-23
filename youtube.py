@@ -47,6 +47,20 @@ def grabProtURL(ytID):
     request = requests.get('{0}{1}'.format(baseUrl,ytID))
 
     html = BeautifulSoup(request.text, "lxml")
+    pagelink = html.findAll('a', attrs={'id': 'getlink'})
+
+    #site changes, need to add extra step for link
+    for page in pagelink:
+        dl = re.search('{0}(.+?){1}'.format('href="', '"'), str(page))
+        if dl:
+            downlLink = dl.group(1).replace('amp;', '')
+
+
+    #grab audio link
+
+    request = requests.get(downlLink)
+    html = BeautifulSoup(request.text, "lxml")
+
     links = html.findAll('a', href=True)
 
     for link in links:
